@@ -7,8 +7,7 @@ module.exports = {
   apps: [
     {
       name: 'pixsignpro-api',
-      script: 'apps/api/dist/index.js',
-      cwd: '/var/www/pixsignpro',
+      script: 'dist/index.js',
       instances: 1,
       autorestart: true,
       watch: false,
