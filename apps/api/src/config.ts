@@ -21,4 +21,7 @@ export const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  // Legacy mobile app compatibility
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'https://dev.pixsign.in').replace(/\/$/, ''),
+  legacyApiKey: process.env.LEGACY_API_KEY ?? 'dfjbdfubvrhf48h3r8hfhf38rf',
 };

@@ -53,3 +53,4 @@ eventsRouter.post('/', async (req, res) => {
     err(res, 500, 'server_error', 'Unexpected error');
   }
 });
+

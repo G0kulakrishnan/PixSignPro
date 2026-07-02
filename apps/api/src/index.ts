@@ -13,6 +13,8 @@ import { eventsRouter } from './routes/events';
 import { plansRouter } from './routes/admin/plans';
 import { businessesRouter } from './routes/admin/businesses';
 import { overviewRouter } from './routes/admin/overview';
+import { legacyRouter } from './routes/legacy';
+import { publicFilesRouter } from './routes/legacy/publicFiles';
 import { err } from './lib/response';
 
 const app = express();
@@ -46,6 +48,7 @@ const apiLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
+app.use('/pro/api', apiLimiter);
 
 // --- Health check (no auth) ---
 app.get('/health', (_req, res) => {
@@ -62,6 +65,10 @@ app.use('/api/events', eventsRouter);
 app.use('/api/admin/plans', plansRouter);
 app.use('/api/admin/businesses', businessesRouter);
 app.use('/api/admin/overview', overviewRouter);
+
+// --- Legacy mobile-app compatibility (Flutter app; see MOBILE_API_PLAN.md) ---
+app.use('/uploads', publicFilesRouter);   // public, unguessable UUID capability URLs
+app.use('/pro/api', legacyRouter);          // /pro/api/*.php contract
 
 // --- Default-deny ---
 app.use((_req, res) => {

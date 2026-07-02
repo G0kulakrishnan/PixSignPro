@@ -62,6 +62,7 @@ model SubscriptionPlan {
 /// Tenant. One row per business. RLS: visible only when it is the current tenant.
 model Business {
   id                 String             @id @default(uuid()) @db.Uuid
+  legacyId           Int                @unique @default(autoincrement()) @map("legacy_id") // int surrogate for legacy mobile app
   name               String
   agencyName         String?            @map("agency_name")
   city               String?
@@ -87,6 +88,7 @@ model Business {
 /// Portal users. `mobile_no` is GLOBALLY unique (login by mobile → derive business).
 model User {
   id              String       @id @default(uuid()) @db.Uuid
+  legacyId        Int          @unique @default(autoincrement()) @map("legacy_id") // int surrogate for legacy mobile app
   businessId      String       @map("business_id") @db.Uuid
   mobileNo        String       @unique @map("mobile_no")
   passwordHash    String       @map("password_hash")
@@ -131,6 +133,7 @@ model SuperAdmin {
 /// Uploaded image/video. Files live on disk; only metadata here.
 model Media {
   id                 String    @id @default(uuid()) @db.Uuid
+  legacyId           Int       @unique @default(autoincrement()) @map("legacy_id") // int surrogate for legacy mobile app
   businessId         String    @map("business_id") @db.Uuid
   type               MediaType
   title              String
