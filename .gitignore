@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Env & secrets (NEVER commit) — keep .env.example only
+.env
+.env.*
+!.env.example
+
+# Prisma
+**/prisma/generated/
+
+# Media storage (never committed)
+storage/
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

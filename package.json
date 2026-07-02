@@ -1,0 +1,34 @@
+{
+  "name": "pixsignpro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PixSign Pro — multi-tenant B2B SaaS for media distribution",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:generate": "npm run -w @pixsignpro/db generate",
+    "db:migrate": "npm run -w @pixsignpro/db migrate",
+    "db:migrate:dev": "npm run -w @pixsignpro/db migrate:dev",
+    "db:rls": "npm run -w @pixsignpro/db rls",
+    "db:seed": "npm run -w @pixsignpro/db seed",
+    "db:setup": "npm run -w @pixsignpro/db setup",
+    "db:test": "npm run -w @pixsignpro/db test",
+    "db:studio": "npm run -w @pixsignpro/db studio",
+    "dev:api": "npm run -w @pixsignpro/api dev",
+    "build": "npm run -ws --if-present build",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
+  }
+}
