@@ -30,7 +30,7 @@ surfaces plus a shared API:
 
 ### Deployment context (VPS)
 - Single Linux VPS also running: `t2gcrm`, `dev-t2gcrm`, `hotel-pms`, `vaultguard-api` (all pm2/Node).
-  Ubuntu, Postgres 17 on :5432. Ports 3000 (t2gcrm) and 4000 (vaultguard) taken.
+  Ubuntu, Postgres 17 on :5432. Ports taken: 3000 (t2gcrm), 3001 (dev-t2gcrm), 3002 (hotel-pms), 4000 (vaultguard).
 - **Shared PostgreSQL** with existing multi-tenancy. PixSign Pro has its **own database + role**
   (`pixsignpro` / `pixsignpro`, non-superuser) — does not collide with the other apps' tables.
 - **App code path:** `/var/www/pixsignpro` (owned by a dedicated non-root deploy user).
@@ -233,4 +233,61 @@ PixSign Pro gets its **own database + dedicated DB role** on the shared Postgres
 - Connection string (goes in `apps/api/.env` as `DATABASE_URL`):
   `postgresql://pixsignpro:<password>@localhost:5432/pixsignpro?schema=public`
 - The dedicated role is **non-superuser** so RLS actually applies (superusers bypass RLS).
+
+## 13. Deployment (VPS)
+
+### Server details
+- **VPS IP:** `85.208.51.93`
+- **Deploy user:** `pixsignpro-deploy` (SSH key: `C:/Users/Gokul/.ssh/claude_pixsignpro`)
+- **App root:** `/var/www/pixsignpro` (this is also the deploy user's home directory)
+- **Domain:** `dev.pixsign.in` (HTTPS via Let's Encrypt, nginx reverse proxy)
+- **API port:** `3010`
+- **Media storage:** `/var/www/pixsignpro/storage/<business_id>/`
+
+### SSH access
+```bash
+ssh -i C:/Users/Gokul/.ssh/claude_pixsignpro pixsignpro-deploy@85.208.51.93
 ```
+
+### Node / npm / pm2 — IMPORTANT
+- Node.js is installed via **nvm under root** (`/root/.nvm/versions/node/v20.20.2/`)
+- `npm`, `pm2`, and all build tools must be run as **sudo with explicit PATH**:
+```bash
+sudo env PATH=/root/.nvm/versions/node/v20.20.2/bin:$PATH npm <cmd>
+sudo env PATH=/root/.nvm/versions/node/v20.20.2/bin:$PATH pm2 <cmd>
+```
+- Plain `sudo npm` or `sudo pm2` won't work — nvm PATH isn't inherited by sudo.
+- The `pixsignpro-deploy` user does **not** have npm/node in its own PATH.
+
+### Deploy workflow (git-based)
+```bash
+# 1. Commit + push locally
+git add <files> && git commit -m "..." && git push origin main
+
+# 2. SSH into VPS and pull
+ssh -i C:/Users/Gokul/.ssh/claude_pixsignpro pixsignpro-deploy@85.208.51.93
+
+# 3. On VPS: pull, build, restart
+cd /var/www/pixsignpro
+git pull origin main
+NODE=/root/.nvm/versions/node/v20.20.2/bin
+sudo env PATH=$NODE:$PATH npm run build --workspace=packages/db
+sudo env PATH=$NODE:$PATH npm run build --workspace=apps/api
+sudo env PATH=$NODE:$PATH npm run build --workspace=apps/web
+sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
+```
+
+### Nginx config
+- Config file: `/etc/nginx/sites-available/dev.pixsign.in`
+- `/api/` → proxied to `http://127.0.0.1:3010`
+- `/admin/` → `alias /var/www/pixsignpro/apps/admin/dist/` (SPA with try_files)
+- `/` → `root /var/www/pixsignpro/apps/web/dist` (SPA with try_files)
+- Reload: `sudo nginx -t && sudo systemctl reload nginx`
+
+### PM2
+- Process name: `pixsignpro-api`
+- Ecosystem file: `/var/www/pixsignpro/ecosystem.config.cjs`
+- Commands (always use `sudo env PATH=...`):
+  - `sudo env PATH=... pm2 status` — check status
+  - `sudo env PATH=... pm2 restart pixsignpro-api` — restart after API build
+  - `sudo env PATH=... pm2 logs pixsignpro-api --lines 50` — view logs
