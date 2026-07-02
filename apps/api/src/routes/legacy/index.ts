@@ -1,26 +1,43 @@
 // Legacy Flutter-app compatibility layer. Mounted at /pro/api.
-// Serves the exact PHP-era contract the mobile app expects (see MOBILE_API_PLAN.md).
-// All responses are HTTP 200 with a { status_code, Status, message, ... } body.
+// Serves the PHP-era contract the mobile app expects (see MOBILE_API_PLAN.md).
+//
+// Auth: Bearer JWT access token on every authenticated request (login/refresh/register are public).
+// Identity is always derived from the verified token — client-sent business_id/user_id are ignored.
+// All DB work runs through withTenant() so Postgres RLS applies.
 
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import path from 'path';
+import rateLimit from 'express-rate-limit';
 import { withSystem, withTenant } from '@pixsignpro/db';
 import { config } from '../../config';
 import { generateAutoTitle } from '../../lib/autoName';
 import { deleteFile } from '../../lib/storage';
 import {
-  envelope, requireApiKey, resolveBusiness, resolveUser, resolveMedia,
+  envelope, requireMobileAuth,
+  resolveBusiness, resolveBusinessByUuid, resolveUser, resolveMedia,
   toAppUserDetails, toAppMedia, type ResolvedBusiness,
 } from './_shared';
 import { legacyUpload, finalizeFile, cleanupTmp } from './upload';
 
 export const legacyRouter = Router();
-legacyRouter.use(requireApiKey);
+
+// Rate limiter for login — tighter than the global API limiter.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    envelope(res as any, 429, 'error', 'Too many login attempts. Try again in 15 minutes.');
+  },
+});
 
 const DUMMY_HASH = '$2a$12$invalidhashfortimingatk0000000000000000000000000000';
 
-// Build a ResolvedBusiness from a full business row.
+// Build a ResolvedBusiness from a full business row (used after a full include).
 function toResolvedBusiness(b: {
   id: string; legacyId: number; name: string; isActive: boolean;
   subscriptionStatus: string; subscriptionEnd: Date | null;
@@ -31,10 +48,50 @@ function toResolvedBusiness(b: {
   };
 }
 
-// --- 1. GET /login.php?username=<mobile>&password= -----------------------
-legacyRouter.get('/login.php', async (req, res) => {
-  const username = String(req.query.username ?? '').trim();
-  const password = String(req.query.password ?? '');
+// Issue an opaque refresh token: store SHA-256 hash in DB, return raw hex to caller.
+async function issueRefreshToken(userId: string): Promise<string> {
+  const raw = crypto.randomBytes(48).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(raw).digest('hex');
+  const expiresAt = new Date(Date.now() + config.mobileJwt.refreshTtlMs);
+  await withSystem((tx) =>
+    tx.mobileRefreshToken.create({ data: { userId, tokenHash, expiresAt } }),
+  );
+  return raw;
+}
+
+// Issue a short-lived JWT access token from a user row + business.
+function issueAccessToken(user: {
+  id: string; businessId: string; role: string; legacyId: number;
+}, business: { legacyId: number }): string {
+  return jwt.sign(
+    {
+      userId: user.id,
+      businessId: user.businessId,
+      role: user.role,
+      legacyUserId: user.legacyId,
+      legacyBusinessId: business.legacyId,
+    },
+    config.mobileJwt.accessSecret,
+    { expiresIn: config.mobileJwt.accessTtl as jwt.SignOptions['expiresIn'] },
+  );
+}
+
+// Revoke all active refresh tokens for a user (logout, password change, account delete).
+async function revokeAllRefreshTokens(userId: string): Promise<void> {
+  await withSystem((tx) =>
+    tx.mobileRefreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+  );
+}
+
+// ============================================================
+// --- 1. POST /login.php  (public, rate-limited) ------------
+// ============================================================
+legacyRouter.post('/login.php', loginLimiter, legacyUpload.none(), async (req, res) => {
+  const username = String(req.body.username ?? '').trim();
+  const password = String(req.body.password ?? '');
 
   if (!username || !password) {
     envelope(res, 400, 'error', 'Mobile number and password are required');
@@ -53,12 +110,16 @@ legacyRouter.get('/login.php', async (req, res) => {
 
     const business = toResolvedBusiness(user.business);
 
-    // Track app-open activity.
     await withTenant(user.businessId, (tx) =>
       tx.user.update({ where: { id: user.id }, data: { lastAppOpenedAt: new Date() } }),
     );
 
+    const accessToken = issueAccessToken(user, business);
+    const refreshToken = await issueRefreshToken(user.id);
+
     envelope(res, 200, 'success', 'Login successful', {
+      access_token: accessToken,
+      refresh_token: refreshToken,
       user_details: toAppUserDetails(user, business),
     });
   } catch (e) {
@@ -67,45 +128,74 @@ legacyRouter.get('/login.php', async (req, res) => {
   }
 });
 
-// --- 2. GET /user_profile.php?user_id=&business_id= ----------------------
-legacyRouter.get('/user_profile.php', async (req, res) => {
-  try {
-    const business = await resolveBusiness(Number(req.query.business_id));
-    if (!business) { envelope(res, 404, 'error', 'Business not found'); return; }
-    const user = await resolveUser(business.id, Number(req.query.user_id));
-    if (!user) { envelope(res, 404, 'error', 'User not found'); return; }
-
-    envelope(res, 200, 'success', 'Profile fetched', {
-      user_details: toAppUserDetails(user, business),
-    });
-  } catch (e) {
-    console.error('[legacy/user_profile]', e);
-    envelope(res, 500, 'error', 'Unexpected error');
+// ============================================================
+// --- 2. POST /refresh.php  (public) ------------------------
+// ============================================================
+legacyRouter.post('/refresh.php', legacyUpload.none(), async (req, res) => {
+  const rawToken = String(req.body.refresh_token ?? '').trim();
+  if (!rawToken) {
+    envelope(res, 401, 'error', 'refresh_token is required');
+    return;
   }
-});
 
-// --- 3. GET /delete-user.php?user_id=&business_id= (soft delete) ----------
-legacyRouter.get('/delete-user.php', async (req, res) => {
   try {
-    const business = await resolveBusiness(Number(req.query.business_id));
-    if (!business) { envelope(res, 404, 'error', 'Business not found'); return; }
-    const user = await resolveUser(business.id, Number(req.query.user_id));
-    if (!user) { envelope(res, 404, 'error', 'User not found'); return; }
-
-    await withTenant(business.id, (tx) =>
-      tx.user.update({ where: { id: user.id }, data: { isActive: false } }),
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const stored = await withSystem((tx) =>
+      tx.mobileRefreshToken.findUnique({
+        where: { tokenHash },
+        include: { user: { include: { business: true } } },
+      }),
     );
 
-    envelope(res, 200, 'success', 'Account deleted', {
-      data: { id: user.legacyId, name: user.name, mobile: user.mobileNo },
+    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+      envelope(res, 401, 'error', 'Invalid or expired refresh token');
+      return;
+    }
+
+    const { user } = stored;
+    if (!user.isActive) {
+      envelope(res, 401, 'error', 'Account is disabled');
+      return;
+    }
+
+    // Rotate: revoke old token, issue new pair.
+    await withSystem((tx) =>
+      tx.mobileRefreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date() },
+      }),
+    );
+
+    const business = toResolvedBusiness(user.business);
+    const accessToken = issueAccessToken(user, business);
+    const newRefreshToken = await issueRefreshToken(user.id);
+
+    envelope(res, 200, 'success', 'Token refreshed', {
+      access_token: accessToken,
+      refresh_token: newRefreshToken,
     });
   } catch (e) {
-    console.error('[legacy/delete-user]', e);
+    console.error('[legacy/refresh]', e);
     envelope(res, 500, 'error', 'Unexpected error');
   }
 });
 
-// --- 4. POST /register.php (name, mobile, password, business_id=3) --------
+// ============================================================
+// --- 3. POST /logout.php  (authenticated) ------------------
+// ============================================================
+legacyRouter.post('/logout.php', requireMobileAuth, async (req, res) => {
+  try {
+    await revokeAllRefreshTokens(req.mobileUser!.userId);
+    envelope(res, 200, 'success', 'Logged out successfully');
+  } catch (e) {
+    console.error('[legacy/logout]', e);
+    envelope(res, 500, 'error', 'Unexpected error');
+  }
+});
+
+// ============================================================
+// --- 4. POST /register.php  (public) -----------------------
+// ============================================================
 legacyRouter.post('/register.php', legacyUpload.none(), async (req, res) => {
   const name = String(req.body.name ?? '').trim();
   const mobile = String(req.body.mobile ?? '').trim();
@@ -121,7 +211,6 @@ legacyRouter.post('/register.php', legacyUpload.none(), async (req, res) => {
     const business = await resolveBusiness(businessLegacyId);
     if (!business) { envelope(res, 404, 'error', 'Business not found'); return; }
 
-    // Globally-unique mobile check.
     const existing = await withSystem((tx) =>
       tx.user.findUnique({ where: { mobileNo: mobile }, select: { id: true } }),
     );
@@ -142,25 +231,72 @@ legacyRouter.post('/register.php', legacyUpload.none(), async (req, res) => {
   }
 });
 
-// --- 5. POST /update-profile.php (multipart, optional profile_pic + logo) -
+// ============================================================
+// --- 5. GET /user_profile.php  (authenticated) -------------
+// ============================================================
+legacyRouter.get('/user_profile.php', requireMobileAuth, async (req, res) => {
+  try {
+    const mu = req.mobileUser!;
+    const [user, business] = await Promise.all([
+      withTenant(mu.businessId, (tx) => tx.user.findUnique({ where: { id: mu.userId } })),
+      resolveBusinessByUuid(mu.businessId),
+    ]);
+    if (!user || !business) { envelope(res, 404, 'error', 'User not found'); return; }
+
+    envelope(res, 200, 'success', 'Profile fetched', {
+      user_details: toAppUserDetails(user, business),
+    });
+  } catch (e) {
+    console.error('[legacy/user_profile]', e);
+    envelope(res, 500, 'error', 'Unexpected error');
+  }
+});
+
+// ============================================================
+// --- 6. POST /delete-user.php  (authenticated) -------------
+// ============================================================
+legacyRouter.post('/delete-user.php', requireMobileAuth, async (req, res) => {
+  try {
+    const mu = req.mobileUser!;
+    const user = await withTenant(mu.businessId, (tx) =>
+      tx.user.findUnique({ where: { id: mu.userId } }),
+    );
+    if (!user) { envelope(res, 404, 'error', 'User not found'); return; }
+
+    await revokeAllRefreshTokens(mu.userId);
+    await withTenant(mu.businessId, (tx) =>
+      tx.user.update({ where: { id: mu.userId }, data: { isActive: false } }),
+    );
+
+    envelope(res, 200, 'success', 'Account deleted', {
+      data: { id: user.legacyId, name: user.name, mobile: user.mobileNo },
+    });
+  } catch (e) {
+    console.error('[legacy/delete-user]', e);
+    envelope(res, 500, 'error', 'Unexpected error');
+  }
+});
+
+// ============================================================
+// --- 7. POST /update-profile.php  (authenticated) ----------
+// ============================================================
 const profileFields = legacyUpload.fields([
   { name: 'profile_pic', maxCount: 1 },
   { name: 'logo', maxCount: 1 },
 ]);
 
-legacyRouter.post('/update-profile.php', profileFields, async (req, res) => {
+legacyRouter.post('/update-profile.php', requireMobileAuth, profileFields, async (req, res) => {
   const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
   const pic = files['profile_pic']?.[0];
   const logo = files['logo']?.[0];
 
   try {
-    const business = await resolveBusiness(Number(req.body.business_id));
-    if (!business) {
-      cleanupTmp(pic?.path); cleanupTmp(logo?.path);
-      envelope(res, 404, 'error', 'Business not found'); return;
-    }
-    const user = await resolveUser(business.id, Number(req.body.user_id));
-    if (!user) {
+    const mu = req.mobileUser!;
+    const [user, business] = await Promise.all([
+      withTenant(mu.businessId, (tx) => tx.user.findUnique({ where: { id: mu.userId } })),
+      resolveBusinessByUuid(mu.businessId),
+    ]);
+    if (!user || !business) {
       cleanupTmp(pic?.path); cleanupTmp(logo?.path);
       envelope(res, 404, 'error', 'User not found'); return;
     }
@@ -178,16 +314,16 @@ legacyRouter.post('/update-profile.php', profileFields, async (req, res) => {
     if (b.optional_field_2 !== undefined) data.optional2 = String(b.optional_field_2);
 
     if (pic) {
-      data.profilePicUrl = finalizeFile(pic.path, business.id, pic.originalname);
+      data.profilePicUrl = finalizeFile(pic.path, mu.businessId, pic.originalname);
       if (user.profilePicUrl) deleteFile(path.join(config.storageDir, '..', user.profilePicUrl));
     }
     if (logo) {
-      data.companyLogoUrl = finalizeFile(logo.path, business.id, logo.originalname);
+      data.companyLogoUrl = finalizeFile(logo.path, mu.businessId, logo.originalname);
       if (user.companyLogoUrl) deleteFile(path.join(config.storageDir, '..', user.companyLogoUrl));
     }
 
-    const updated = await withTenant(business.id, (tx) =>
-      tx.user.update({ where: { id: user.id }, data }),
+    const updated = await withTenant(mu.businessId, (tx) =>
+      tx.user.update({ where: { id: mu.userId }, data }),
     );
 
     envelope(res, 200, 'success', 'Profile updated', {
@@ -201,8 +337,10 @@ legacyRouter.post('/update-profile.php', profileFields, async (req, res) => {
   }
 });
 
-// --- 6. POST /update-password.php ----------------------------------------
-legacyRouter.post('/update-password.php', legacyUpload.none(), async (req, res) => {
+// ============================================================
+// --- 8. POST /update-password.php  (authenticated) ---------
+// ============================================================
+legacyRouter.post('/update-password.php', requireMobileAuth, legacyUpload.none(), async (req, res) => {
   const oldPassword = String(req.body.old_password ?? '');
   const newPassword = String(req.body.new_password ?? '');
 
@@ -212,18 +350,22 @@ legacyRouter.post('/update-password.php', legacyUpload.none(), async (req, res) 
   }
 
   try {
-    const business = await resolveBusiness(Number(req.body.business_id));
-    if (!business) { envelope(res, 404, 'error', 'Business not found'); return; }
-    const user = await resolveUser(business.id, Number(req.body.user_id));
+    const mu = req.mobileUser!;
+    const user = await withTenant(mu.businessId, (tx) =>
+      tx.user.findUnique({ where: { id: mu.userId } }),
+    );
     if (!user) { envelope(res, 404, 'error', 'User not found'); return; }
 
     const match = await bcrypt.compare(oldPassword, user.passwordHash);
     if (!match) { envelope(res, 401, 'error', 'Current password is incorrect'); return; }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await withTenant(business.id, (tx) =>
-      tx.user.update({ where: { id: user.id }, data: { passwordHash } }),
-    );
+    await Promise.all([
+      withTenant(mu.businessId, (tx) =>
+        tx.user.update({ where: { id: mu.userId }, data: { passwordHash } }),
+      ),
+      revokeAllRefreshTokens(mu.userId), // force re-login on all devices
+    ]);
 
     envelope(res, 200, 'success', 'Password updated successfully');
   } catch (e) {
@@ -232,44 +374,49 @@ legacyRouter.post('/update-password.php', legacyUpload.none(), async (req, res) 
   }
 });
 
-// --- 7 & 8. GET /view-images.php , /view-videos.php ----------------------
+// ============================================================
+// --- 9 & 10. GET /view-images.php, /view-videos.php --------
+// ============================================================
 async function listMedia(req: any, res: any, type: 'image' | 'video') {
   try {
-    const business = await resolveBusiness(Number(req.query.business_id));
-    if (!business) { envelope(res, 404, 'error', 'Business not found'); return; }
-
+    const mu = req.mobileUser!;
     const now = new Date();
-    const items = await withTenant(business.id, (tx) =>
+    const items = await withTenant(mu.businessId, (tx) =>
       tx.media.findMany({
         where: {
-          businessId: business.id,
+          businessId: mu.businessId,
           type,
-          // Only currently-published media is exposed to the app.
           OR: [{ scheduledPublishAt: null }, { scheduledPublishAt: { lte: now } }, { published: true }],
         },
         orderBy: { createdAt: 'desc' },
-        select: { legacyId: true, type: true, filePath: true, createdAt: true },
+        select: { legacyId: true, type: true, fileName: true, createdAt: true },
       }),
     );
 
-    envelope(res, 200, 'success', 'OK', { data: items.map(toAppMedia) });
+    envelope(res, 200, 'success', 'OK', { data: items.map((m) => toAppMedia(m, mu.businessId)) });
   } catch (e) {
     console.error(`[legacy/view-${type}s]`, e);
     envelope(res, 500, 'error', 'Unexpected error');
   }
 }
 
-legacyRouter.get('/view-images.php', (req, res) => listMedia(req, res, 'image'));
-legacyRouter.get('/view-videos.php', (req, res) => listMedia(req, res, 'video'));
+legacyRouter.get('/view-images.php', requireMobileAuth, (req, res) => listMedia(req, res, 'image'));
+legacyRouter.get('/view-videos.php', requireMobileAuth, (req, res) => listMedia(req, res, 'video'));
 
-// --- 9 & 10. POST /upload-image.php , /upload-video.php ------------------
+// ============================================================
+// --- 11 & 12. POST /upload-image.php, /upload-video.php ----
+// ============================================================
 async function enforceStorage(businessUuid: string, addBytes: number): Promise<boolean> {
   const [used, biz] = await Promise.all([
-    withTenant(businessUuid, (tx) => tx.media.aggregate({ _sum: { fileSize: true }, where: { businessId: businessUuid } })),
-    withSystem((tx) => tx.business.findUnique({ where: { id: businessUuid }, include: { plan: true } })),
+    withTenant(businessUuid, (tx) =>
+      tx.media.aggregate({ _sum: { fileSize: true }, where: { businessId: businessUuid } }),
+    ),
+    withSystem((tx) =>
+      tx.business.findUnique({ where: { id: businessUuid }, include: { plan: true } }),
+    ),
   ]);
   const usedBytes = Number(used._sum.fileSize ?? 0);
-  const maxMb = biz?.plan?.maxStorageMb ?? 0; // 0 = unlimited
+  const maxMb = biz?.plan?.maxStorageMb ?? 0;
   if (maxMb <= 0) return true;
   return usedBytes + addBytes <= maxMb * 1024 * 1024;
 }
@@ -278,25 +425,25 @@ function makeUploadHandler(type: 'image' | 'video', field: 'image' | 'video') {
   return async (req: any, res: any) => {
     const file = req.file as Express.Multer.File | undefined;
     try {
-      const business = await resolveBusiness(Number(req.body.business_id));
-      if (!business) { cleanupTmp(file?.path); envelope(res, 404, 'error', 'Business not found'); return; }
+      const mu = req.mobileUser!;
       if (!file) { envelope(res, 400, 'error', `No ${field} uploaded`); return; }
 
-      if (!(await enforceStorage(business.id, file.size))) {
+      if (!(await enforceStorage(mu.businessId, file.size))) {
         cleanupTmp(file.path);
         envelope(res, 403, 'error', 'Storage limit reached for your plan');
         return;
       }
 
-      const filePath = finalizeFile(file.path, business.id, file.originalname);
-      const title = await generateAutoTitle(business.id);
+      const filePath = finalizeFile(file.path, mu.businessId, file.originalname);
+      const title = await generateAutoTitle(mu.businessId);
 
-      await withTenant(business.id, (tx) =>
+      await withTenant(mu.businessId, (tx) =>
         tx.media.create({
           data: {
-            businessId: business.id, type, title,
+            businessId: mu.businessId, type, title,
             fileName: path.basename(filePath), filePath,
             fileSize: file.size, mimeType: file.mimetype,
+            uploadedById: mu.userId,
             published: true,
           },
         }),
@@ -311,35 +458,43 @@ function makeUploadHandler(type: 'image' | 'video', field: 'image' | 'video') {
   };
 }
 
-legacyRouter.post('/upload-image.php', legacyUpload.single('image'), makeUploadHandler('image', 'image'));
-legacyRouter.post('/upload-video.php', legacyUpload.single('video'), makeUploadHandler('video', 'video'));
+legacyRouter.post(
+  '/upload-image.php',
+  requireMobileAuth,
+  legacyUpload.single('image'),
+  makeUploadHandler('image', 'image'),
+);
+legacyRouter.post(
+  '/upload-video.php',
+  requireMobileAuth,
+  legacyUpload.single('video'),
+  makeUploadHandler('video', 'video'),
+);
 
-// --- 11. POST /analytics.php ---------------------------------------------
-legacyRouter.post('/analytics.php', legacyUpload.none(), async (req, res) => {
+// ============================================================
+// --- 13. POST /analytics.php  (authenticated) --------------
+// ============================================================
+legacyRouter.post('/analytics.php', requireMobileAuth, legacyUpload.none(), async (req, res) => {
   const type = String(req.body.type ?? '');
   const imageId = req.body.image_id != null ? Number(req.body.image_id) : null;
   const videoId = req.body.video_id != null ? Number(req.body.video_id) : null;
 
   try {
-    const business = await resolveBusiness(Number(req.body.business_id));
-    if (!business) { envelope(res, 404, 'error', 'Business not found'); return; }
-    const user = await resolveUser(business.id, Number(req.body.user_id));
-    if (!user) { envelope(res, 404, 'error', 'User not found'); return; }
+    const mu = req.mobileUser!;
 
-    // Always refresh app-open activity.
-    await withTenant(business.id, (tx) =>
-      tx.user.update({ where: { id: user.id }, data: { lastAppOpenedAt: new Date() } }),
+    await withTenant(mu.businessId, (tx) =>
+      tx.user.update({ where: { id: mu.userId }, data: { lastAppOpenedAt: new Date() } }),
     );
 
     if (type !== 'APP_OPENED') {
       const eventType = type.endsWith('_SHARED') ? 'share' : 'download';
       const legacyMediaId = imageId ?? videoId;
       if (legacyMediaId) {
-        const media = await resolveMedia(business.id, legacyMediaId);
+        const media = await resolveMedia(mu.businessId, legacyMediaId);
         if (media) {
-          await withTenant(business.id, (tx) =>
+          await withTenant(mu.businessId, (tx) =>
             tx.mediaEvent.create({
-              data: { businessId: business.id, mediaId: media.id, userId: user.id, eventType },
+              data: { businessId: mu.businessId, mediaId: media.id, userId: mu.userId, eventType },
             }),
           );
         }
@@ -347,7 +502,7 @@ legacyRouter.post('/analytics.php', legacyUpload.none(), async (req, res) => {
     }
 
     envelope(res, 200, 'success', 'Recorded', {
-      data: { id: null, user_id: user.legacyId, type, image_id: imageId, video_id: videoId },
+      data: { id: null, user_id: mu.legacyUserId, type, image_id: imageId, video_id: videoId },
     });
   } catch (e) {
     console.error('[legacy/analytics]', e);
@@ -355,7 +510,9 @@ legacyRouter.post('/analytics.php', legacyUpload.none(), async (req, res) => {
   }
 });
 
-// --- 12. POST /user-fcm-store.php (stub — push not implemented in v1) -----
-legacyRouter.post('/user-fcm-store.php', legacyUpload.none(), (_req, res) => {
+// ============================================================
+// --- 14. POST /user-fcm-store.php  (authenticated, stub) ---
+// ============================================================
+legacyRouter.post('/user-fcm-store.php', requireMobileAuth, (_req, res) => {
   envelope(res, 200, 'success', 'OK');
 });

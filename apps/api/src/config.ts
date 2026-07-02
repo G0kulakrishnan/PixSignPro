@@ -15,13 +15,21 @@ export const config = {
     accessTtl: process.env.ACCESS_TOKEN_TTL ?? '15m',
     refreshTtl: process.env.REFRESH_TOKEN_TTL ?? '7d',
   },
+  // Mobile app JWT — separate secrets from the web portal.
+  mobileJwt: {
+    accessSecret: required('MOBILE_JWT_ACCESS_SECRET'),
+    accessTtl: process.env.MOBILE_ACCESS_TTL ?? '15m',
+    // Refresh tokens are opaque + DB-backed; TTL controlled here for the DB row.
+    refreshTtlMs: Number(process.env.MOBILE_REFRESH_TTL_DAYS ?? 30) * 24 * 60 * 60 * 1000,
+  },
+  // HMAC secret for signing short-lived media URLs served to the mobile app.
+  mediaSignSecret: required('MEDIA_SIGN_SECRET'),
   storageDir: process.env.STORAGE_DIR ?? './storage',
   maxFileSizeBytes: Number(process.env.MAX_FILE_SIZE_BYTES ?? 500 * 1024 * 1024),
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
-  // Legacy mobile app compatibility
+  // Base URL for building absolute media URLs returned to the mobile app.
   publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'https://dev.pixsign.in').replace(/\/$/, ''),
-  legacyApiKey: process.env.LEGACY_API_KEY ?? 'dfjbdfubvrhf48h3r8hfhf38rf',
 };

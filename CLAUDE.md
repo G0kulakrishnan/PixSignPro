@@ -272,11 +272,18 @@ ssh -i C:/Users/Gokul/.ssh/claude_pixsignpro pixsignpro-deploy@85.208.51.93
 cd /var/www/pixsignpro
 git pull origin main
 NODE=/root/.nvm/versions/node/v20.20.2/bin
+sudo env PATH=$NODE:$PATH npm install              # after adding new npm deps
+sudo env PATH=$NODE:$PATH npm run generate --workspace=packages/db   # ALWAYS after schema changes
+sudo env PATH=$NODE:$PATH npm run migrate  --workspace=packages/db   # ALWAYS after schema changes
 sudo env PATH=$NODE:$PATH npm run build --workspace=packages/db
 sudo env PATH=$NODE:$PATH npm run build --workspace=apps/api
 sudo env PATH=$NODE:$PATH npm run build --workspace=apps/web
 sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 ```
+
+> **Schema change checklist:** run `generate` → `migrate` → `build` in that order.
+> `generate` regenerates the Prisma TypeScript client (reads schema, no DB needed).
+> `migrate` applies pending SQL migrations to the live DB.
 
 ### Nginx config
 - Config file: `/etc/nginx/sites-available/dev.pixsign.in`

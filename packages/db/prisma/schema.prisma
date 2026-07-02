@@ -109,8 +109,9 @@ model User {
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
   business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  uploadedMedia Media[]      @relation("UploadedBy")
-  mediaEvents   MediaEvent[]
+  uploadedMedia  Media[]               @relation("UploadedBy")
+  mediaEvents    MediaEvent[]
+  refreshTokens  MobileRefreshToken[]
 
   @@index([businessId])
   @@map("users")
@@ -155,6 +156,21 @@ model Media {
   @@index([businessId, published])
   @@index([scheduledPublishAt])
   @@map("media")
+}
+
+/// Opaque refresh tokens for the mobile API. SHA-256 hash stored; raw token sent to client only once.
+model MobileRefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mobile_refresh_tokens")
 }
 
 /// Analytics source: one row per tracked action (download / share / view / app-open).

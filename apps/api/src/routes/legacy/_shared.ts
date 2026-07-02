@@ -1,16 +1,34 @@
 // Shared helpers for the legacy Flutter-app compatibility layer (/pro/api/*.php).
 //
-// The mobile app speaks a fixed PHP-era contract we cannot change:
-//  - integer ids (businesses/users/media each carry a `legacyId` surrogate),
-//  - `Status` (capital S) + `status_code` envelope, always HTTP 200,
-//  - no JWT — identity is the `business_id`/`user_id` in the request (old trust model).
-//
-// Every DB access still runs through withTenant(businessUuid, …) so Postgres RLS
-// applies even here; withSystem is used only to resolve a business by its int id.
+// Auth model: Bearer JWT access token on every authenticated request.
+// The server derives userId / businessId / role from the token; client-sent ids are ignored.
+// Refresh tokens are opaque random strings stored as SHA-256 hashes in mobile_refresh_tokens.
+// Media URLs are HMAC-SHA256 signed with a 1-hour expiry.
 
 import type { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { withSystem, withTenant } from '@pixsignpro/db';
 import { config } from '../../config';
+
+// --- Mobile JWT payload (inside access token) ----------------------------
+
+export interface MobileUser {
+  userId: string;
+  businessId: string;
+  role: string;
+  legacyUserId: number;
+  legacyBusinessId: number;
+}
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      mobileUser?: MobileUser;
+    }
+  }
+}
 
 // --- Envelope -------------------------------------------------------------
 
@@ -25,21 +43,55 @@ export function envelope(
   res.status(200).json({ status_code: statusCode, Status: status, message, ...extra });
 }
 
-// --- API key gate ---------------------------------------------------------
+// --- Bearer auth middleware -----------------------------------------------
 
-export function requireApiKey(req: Request, res: Response, next: NextFunction): void {
-  const key = (req.query['api-key'] as string | undefined) ?? '';
-  if (key !== config.legacyApiKey) {
-    envelope(res, 401, 'error', 'Invalid API key');
+export function requireMobileAuth(req: Request, res: Response, next: NextFunction): void {
+  const auth = String(req.headers['authorization'] ?? '');
+  if (!auth.startsWith('Bearer ')) {
+    envelope(res, 401, 'error', 'Authentication required');
     return;
   }
-  next();
+  try {
+    const payload = jwt.verify(auth.slice(7), config.mobileJwt.accessSecret) as MobileUser;
+    req.mobileUser = payload;
+    next();
+  } catch {
+    envelope(res, 401, 'error', 'Token expired or invalid');
+  }
+}
+
+// --- Signed media URLs ---------------------------------------------------
+
+/** Sign a `/uploads/<businessId>/<filename>` URL valid for 1 hour. */
+export function signedMediaUrl(businessId: string, filename: string): string {
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const sig = crypto
+    .createHmac('sha256', config.mediaSignSecret)
+    .update(`${businessId}/${filename}/${exp}`)
+    .digest('hex');
+  return `${config.publicBaseUrl}/uploads/${businessId}/${filename}?exp=${exp}&sig=${sig}`;
+}
+
+/** Convert a stored `/storage/<businessId>/<file>` path to a signed public URL. */
+export function signedStoredPath(businessId: string, filePath: string | null | undefined): string | null {
+  if (!filePath) return null;
+  const s = String(filePath).trim();
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    // Already a full URL (uploaded in earlier session) — re-sign using extracted parts.
+    const m = s.match(/\/uploads\/([^/]+)\/([^/?]+)/);
+    if (m?.[1] && m?.[2]) return signedMediaUrl(m[1], m[2]);
+    return s; // fallback: return as-is
+  }
+  // Stored form: /storage/<businessId>/<filename>
+  const filename = s.split('/').pop();
+  if (!filename) return null;
+  return signedMediaUrl(businessId, filename);
 }
 
 // --- Int <-> UUID resolution ---------------------------------------------
 
 export interface ResolvedBusiness {
-  id: string; // uuid
+  id: string;
   legacyId: number;
   name: string;
   isActive: boolean;
@@ -47,17 +99,24 @@ export interface ResolvedBusiness {
   subscriptionEnd: Date | null;
 }
 
-/** Resolve a business by its integer legacy id. Cross-tenant → withSystem. */
+const BUSINESS_SELECT = {
+  id: true, legacyId: true, name: true,
+  isActive: true, subscriptionStatus: true, subscriptionEnd: true,
+} as const;
+
+/** Resolve a business by its integer legacy id (cross-tenant lookup). */
 export async function resolveBusiness(legacyId: number): Promise<ResolvedBusiness | null> {
   if (!Number.isInteger(legacyId) || legacyId <= 0) return null;
   const biz = await withSystem((tx) =>
-    tx.business.findUnique({
-      where: { legacyId },
-      select: {
-        id: true, legacyId: true, name: true, isActive: true,
-        subscriptionStatus: true, subscriptionEnd: true,
-      },
-    }),
+    tx.business.findUnique({ where: { legacyId }, select: BUSINESS_SELECT }),
+  );
+  return biz as ResolvedBusiness | null;
+}
+
+/** Resolve a business by its UUID (for authenticated routes where token has the UUID). */
+export async function resolveBusinessByUuid(businessUuid: string): Promise<ResolvedBusiness | null> {
+  const biz = await withSystem((tx) =>
+    tx.business.findUnique({ where: { id: businessUuid }, select: BUSINESS_SELECT }),
   );
   return biz as ResolvedBusiness | null;
 }
@@ -65,10 +124,9 @@ export async function resolveBusiness(legacyId: number): Promise<ResolvedBusines
 /** Resolve a user by int legacy id, verifying it belongs to the given business. */
 export async function resolveUser(businessUuid: string, legacyUserId: number) {
   if (!Number.isInteger(legacyUserId) || legacyUserId <= 0) return null;
-  const user = await withTenant(businessUuid, (tx) =>
+  return withTenant(businessUuid, (tx) =>
     tx.user.findFirst({ where: { legacyId: legacyUserId, businessId: businessUuid } }),
   );
-  return user;
 }
 
 /** Resolve a media row by int legacy id within a business. */
@@ -81,23 +139,8 @@ export async function resolveMedia(businessUuid: string, legacyMediaId: number) 
 
 // --- Mapping to the app's JSON shapes ------------------------------------
 
-/** Our role → the string the Flutter app checks (`bizadmin` unlocks upload). */
 export function roleToApp(role: string): string {
   return role === 'staff' ? 'staff' : 'bizadmin';
-}
-
-/** Turn a stored `/storage/<uuid>/<file>` path into a public absolute URL. */
-export function storedPathToPublicUrl(filePath: string | null | undefined): string | null {
-  if (!filePath) return null;
-  const s = String(filePath).trim();
-  if (s.startsWith('http://') || s.startsWith('https://')) return s;
-  // Stored form is `/storage/<businessId>/<filename>` → public `/uploads/...`.
-  const rel = s.replace(/^\/?storage\//, '');
-  return `${config.publicBaseUrl}/uploads/${rel}`;
-}
-
-export function publicUrl(businessUuid: string, filename: string): string {
-  return `${config.publicBaseUrl}/uploads/${businessUuid}/${filename}`;
 }
 
 interface UserRow {
@@ -109,7 +152,6 @@ interface UserRow {
   isActive: boolean; createdAt: Date; updatedAt: Date;
 }
 
-/** Build the exact `user_details` object the app parses (login & user_profile). */
 export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Record<string, unknown> {
   const businessActive =
     business.isActive &&
@@ -127,8 +169,8 @@ export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Rec
     role: roleToApp(user.role),
     expiry_date: business.subscriptionEnd ? business.subscriptionEnd.toISOString() : null,
     status,
-    profile_pic: storedPathToPublicUrl(user.profilePicUrl),
-    logo: storedPathToPublicUrl(user.companyLogoUrl),
+    profile_pic: signedStoredPath(business.id, user.profilePicUrl),
+    logo: signedStoredPath(business.id, user.companyLogoUrl),
     youtube: user.youtube,
     website: user.website,
     instagram: user.instagram,
@@ -140,12 +182,12 @@ export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Rec
 }
 
 interface MediaRow {
-  legacyId: number; type: string; filePath: string; createdAt: Date;
+  legacyId: number; type: string; fileName: string; createdAt: Date;
 }
 
 /** Build one media item in the app's shape (view-images / view-videos). */
-export function toAppMedia(media: MediaRow): Record<string, unknown> {
-  const url = storedPathToPublicUrl(media.filePath);
+export function toAppMedia(media: MediaRow, businessId: string): Record<string, unknown> {
+  const url = signedMediaUrl(businessId, media.fileName);
   const isImage = media.type === 'image';
   return {
     id: media.legacyId,
