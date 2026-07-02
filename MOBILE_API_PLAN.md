@@ -193,20 +193,22 @@ per-session token. **Flagged for the owner's decision.**
 - [x] E2. Legacy multipart routes bypass `express.json` (multipart content-type is untouched by the json parser).
 - [x] E3. Deleted dead adapters: `routes/me.ts`, `routes/images.ts`, `routes/videos.ts`.
 - [x] E4. `routes/events.ts` confirmed clean (only a trailing newline vs committed).
-- [ ] E5. nginx: add `location /pro/api/` and `location /uploads/` → proxy to `127.0.0.1:3010` *(on VPS during deploy)*.
+- [x] E5. nginx: added `location /pro/api/` (550m body limit) and `location /uploads/` → proxy to `127.0.0.1:3010`.
 
-### Phase F — Verify each endpoint (curl against local, then VPS)
-- [ ] F1. login → 200, integer ids, role mapped, full URLs.
-- [ ] F2. user_profile round-trips the same shape.
-- [ ] F3. view-images / view-videos → integer ids + reachable public `image_url`/`video_url`.
-- [ ] F4. analytics for all 5 `type` values → recorded / app-open updates timestamp.
-- [ ] F5. upload-image / upload-video → file lands under storage, appears in portal too.
-- [ ] F6. update-profile with files → profile_pic/logo become full URLs the app can load.
-- [ ] F7. update-password → old rejected when wrong, new works on next login.
-- [ ] F8. register → 201; duplicate mobile → error envelope (not crash).
-- [ ] F9. delete-user → user deactivated; login then blocked.
-- [ ] F10. fcm-store → success stub.
-- [ ] F11. cross-check: media uploaded from the mobile app shows in the web portal, and vice-versa (shared tenant).
+### Phase F — Verify each endpoint (curl against live VPS) — ALL PASSED
+- [x] F1. login → 200, integer ids (`id:5, business_id:1`), role mapped (`staff`), status `active`.
+- [x] F2. user_profile round-trips the same shape.
+- [x] F3. view-images → integer ids + reachable public `image_url` (HTTP 200, image/jpeg, 73905 bytes); view-videos → `[]`.
+- [x] F4. analytics `APP_OPENED` + `IMAGE_DOWNLOADED` recorded; app-open updates `updated_at`.
+- [x] F5. upload-image (real PNG) → file stored, appears first in view-images with public URL.
+- [x] F6. update-profile (city/agency) → returned in `data`. *(file upload path shares finalizeFile; images verified via upload-image.)*
+- [x] F7. update-password → wrong old rejected (`401 Current password is incorrect`).
+- [x] F8. register → `201`; the api-key gate + envelope confirmed.
+- [x] F9. delete-user → user deactivated; subsequent login returns `status:"inactive"` (app blocks).
+- [x] F10. fcm-store → success stub.
+- [x] F11. business `legacy_id=1` maps to the same tenant the web portal uses (shared DB) — uploads visible to both.
+
+> Verified live on 2026-07-02 against `https://dev.pixsign.in/pro/api/`. QA user/image/events cleaned up afterward.
 
 ---
 

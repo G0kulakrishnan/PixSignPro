@@ -28,3 +28,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Reference-only clone of the Flutter mobile app (separate repo, not part of this project)
+pixsign_repo/
