@@ -1,8 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Download, Trash2, Clock, Image, Film } from 'lucide-react';
+import { Plus, Download, Trash2, Clock, Image, Film, CheckSquare, Square, BarChart2, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Layout } from '../components/Layout';
+import { Layout, PageHeader } from '../components/Layout';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
@@ -13,6 +14,7 @@ interface Props { type: 'image' | 'video' }
 
 function AuthImage({ mediaId }: { mediaId: string }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -20,18 +22,25 @@ function AuthImage({ mediaId }: { mediaId: string }) {
     fetch(`/api/media/${mediaId}/preview`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
-      .then(r => (r.ok ? r.blob() : null))
+      .then(r => (r.ok ? r.blob() : Promise.reject()))
       .then(blob => {
-        if (blob) {
-          objectUrl = URL.createObjectURL(blob);
-          setSrc(objectUrl);
-        }
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
       })
-      .catch(() => {});
+      .catch(() => setFailed(true));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [mediaId]);
 
-  if (!src) return <div className="w-full h-full bg-gray-100 flex items-center justify-center"><Image size={24} className="text-gray-400" /></div>;
+  if (failed) return (
+    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+      <Image size={32} className="text-gray-300" />
+    </div>
+  );
+  if (!src) return (
+    <div className="w-full h-full bg-gray-100 animate-pulse flex items-center justify-center">
+      <Image size={32} className="text-gray-200" />
+    </div>
+  );
   return <img src={src} alt="" className="w-full h-full object-cover" />;
 }
 
@@ -47,6 +56,10 @@ export function MediaPage({ type }: Props) {
   const [scheduledAt, setScheduledAt] = useState('');
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const canUpload = user?.role !== 'staff';
   const canDelete = user?.role !== 'staff';
@@ -68,6 +81,8 @@ export function MediaPage({ type }: Props) {
   });
 
   async function handleDownload(item: MediaItem) {
+    if (downloadingIds.has(item.id)) return;
+    setDownloadingIds(prev => new Set(prev).add(item.id));
     try {
       const token = getToken();
       const res = await fetch(`/api/media/${item.id}/download`, {
@@ -85,6 +100,8 @@ export function MediaPage({ type }: Props) {
       URL.revokeObjectURL(url);
     } catch {
       toast('error', 'Could not download file');
+    } finally {
+      setDownloadingIds(prev => { const s = new Set(prev); s.delete(item.id); return s; });
     }
   }
 
@@ -95,12 +112,8 @@ export function MediaPage({ type }: Props) {
     try {
       const fd = new FormData();
       uploadFiles.forEach(f => fd.append('files', f));
-      if (uploadTitle.trim()) {
-        fd.append('titles', JSON.stringify([uploadTitle.trim()]));
-      }
-      if (scheduledAt) {
-        fd.append('scheduledPublishAt', new Date(scheduledAt).toISOString());
-      }
+      if (uploadTitle.trim()) fd.append('titles', JSON.stringify([uploadTitle.trim()]));
+      if (scheduledAt) fd.append('scheduledPublishAt', new Date(scheduledAt).toISOString());
       await api('/media/upload', { method: 'POST', body: fd });
       qc.invalidateQueries({ queryKey: ['media', type] });
       toast('success', `${uploadFiles.length} file${uploadFiles.length > 1 ? 's' : ''} uploaded`);
@@ -116,84 +129,158 @@ export function MediaPage({ type }: Props) {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDeleteSelected() {
+    for (const id of selected) {
+      await api(`/media/${id}`, { method: 'DELETE' }).catch(() => {});
+    }
+    qc.invalidateQueries({ queryKey: ['media', type] });
+    toast('success', `${selected.size} item${selected.size > 1 ? 's' : ''} deleted`);
+    setSelected(new Set());
+  }
+
   const title = type === 'image' ? 'Images' : 'Videos';
   const accept = type === 'image' ? 'image/*' : 'video/*';
-  const Icon = type === 'image' ? Image : Film;
 
   return (
     <Layout>
-      <div className="py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-          {canUpload && (
-            <button
-              onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium text-sm transition"
-            >
-              <Plus size={16} /> Upload
-            </button>
-          )}
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-16"><Spinner size={32} /></div>
-        ) : items.length === 0 ? (
-          <div className="text-center py-16">
-            <Icon size={48} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 font-medium">No {title.toLowerCase()} yet</p>
-            {canUpload && <p className="text-sm text-gray-400 mt-1">Tap Upload to add files</p>}
+      <PageHeader
+        title={`Manage ${title}`}
+        subtitle={`Dashboard / Manage ${title}`}
+        action={
+          <div className="flex items-center gap-2">
+            {canDelete && selected.size > 0 && (
+              <button
+                onClick={() => setConfirmDeleteAll(true)}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm"
+              >
+                <Trash2 size={15} /> Delete Selected ({selected.size})
+              </button>
+            )}
+            {canUpload && (
+              <button
+                onClick={() => setShowUpload(true)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm"
+              >
+                <Plus size={16} /> Upload {title}
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {items.map(item => (
-              <div key={item.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-3 p-3">
+        }
+      />
+
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Spinner size={32} /></div>
+      ) : items.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
+          {type === 'image'
+            ? <Image size={52} className="mx-auto text-gray-300 mb-3" />
+            : <Film size={52} className="mx-auto text-gray-300 mb-3" />}
+          <p className="text-gray-600 font-medium">No {title.toLowerCase()} yet</p>
+          {canUpload && <p className="text-sm text-gray-400 mt-1">Click "Upload {title}" to add files</p>}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {items.map(item => {
+            const isSelected = selected.has(item.id);
+            const isScheduled = isAdmin && item.scheduledPublishAt && !item.published;
+            const publishedAt = item.scheduledPublishAt
+              ? new Date(item.scheduledPublishAt)
+              : new Date(item.createdAt);
+
+            return (
+              <div
+                key={item.id}
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all
+                  ${isSelected ? 'border-blue-400 ring-2 ring-blue-300' : 'border-gray-100 hover:shadow-md'}`}
+              >
+                {/* Thumbnail */}
+                <div className="relative aspect-square bg-gray-100">
                   {type === 'image' ? (
-                    <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-gray-100">
-                      <AuthImage mediaId={item.id} />
-                    </div>
+                    <AuthImage mediaId={item.id} />
                   ) : (
-                    <div className="w-14 h-14 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                      <Film size={24} className="text-purple-600" />
+                    <div className="w-full h-full flex items-center justify-center bg-purple-50">
+                      <Film size={40} className="text-purple-400" />
                     </div>
                   )}
 
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm truncate">{item.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(item.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </p>
-                    {isAdmin && item.scheduledPublishAt && !item.published && (
-                      <span className="inline-flex items-center gap-1 text-xs text-yellow-700 bg-yellow-50 rounded-full px-2 py-0.5 mt-1">
-                        <Clock size={10} /> Scheduled
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Select checkbox */}
+                  {canDelete && (
                     <button
-                      onClick={() => handleDownload(item)}
-                      className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition"
-                      aria-label="Download"
+                      onClick={() => toggleSelect(item.id)}
+                      className="absolute top-2 right-2 text-white drop-shadow"
                     >
-                      <Download size={18} />
+                      {isSelected
+                        ? <CheckSquare size={20} className="text-blue-500 bg-white rounded" />
+                        : <Square size={20} className="text-gray-400 bg-white/80 rounded" />}
                     </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => setDeleteTarget(item)}
-                        className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition"
-                        aria-label="Delete"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
-                  </div>
+                  )}
+
+                  {/* Scheduled badge */}
+                  {isScheduled && (
+                    <span className="absolute top-2 left-2 flex items-center gap-1 text-xs font-semibold bg-amber-500 text-white px-2 py-0.5 rounded-full">
+                      <Clock size={10} /> Scheduled
+                    </span>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="px-3 pt-2.5 pb-1">
+                  <p className="text-xs font-semibold text-gray-800 truncate">{item.title}</p>
+                  <p className={`text-xs font-semibold mt-0.5 ${isScheduled ? 'text-amber-600' : 'text-green-600'}`}>
+                    {isScheduled ? 'Scheduled' : 'Published'}
+                  </p>
+                  <p className="text-xs text-gray-400 mb-2">
+                    {publishedAt.toLocaleString('en-IN', {
+                      year: 'numeric', month: '2-digit', day: '2-digit',
+                      hour: '2-digit', minute: '2-digit', hour12: true,
+                    })}
+                  </p>
+                </div>
+
+                {/* Actions — icon buttons */}
+                <div className="px-3 pb-3 flex items-center gap-2">
+                  {isAdmin && (
+                    <button
+                      onClick={() => navigate(`/media/${item.id}/analytics`)}
+                      title="Analytics"
+                      className="flex-1 flex items-center justify-center py-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                    >
+                      <BarChart2 size={16} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDownload(item)}
+                    disabled={downloadingIds.has(item.id)}
+                    title="Download"
+                    className="flex-1 flex items-center justify-center py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-700 disabled:bg-gray-500 transition"
+                  >
+                    {downloadingIds.has(item.id)
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <Download size={16} />}
+                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => setDeleteTarget(item)}
+                      title="Delete"
+                      className="flex-1 flex items-center justify-center py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Upload Modal */}
       {showUpload && (
@@ -210,19 +297,16 @@ export function MediaPage({ type }: Props) {
                   multiple
                   onChange={e => setUploadFiles(Array.from(e.target.files ?? []))}
                   className="block w-full text-sm text-gray-500
-                    file:mr-3 file:py-2 file:px-4
-                    file:rounded-xl file:border-0
-                    file:bg-blue-50 file:text-blue-700 file:font-medium
-                    hover:file:bg-blue-100"
+                    file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0
+                    file:bg-blue-50 file:text-blue-700 file:font-medium hover:file:bg-blue-100"
                 />
                 {uploadFiles.length > 0 && (
                   <p className="text-xs text-green-600 mt-1">{uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} selected</p>
                 )}
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Title <span className="font-normal text-gray-400">(optional — auto-generated if blank)</span>
+                  Title <span className="font-normal text-gray-400">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -232,10 +316,9 @@ export function MediaPage({ type }: Props) {
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Schedule publish <span className="font-normal text-gray-400">(optional — leave blank to publish now)</span>
+                  Schedule publish <span className="font-normal text-gray-400">(optional)</span>
                 </label>
                 <input
                   type="datetime-local"
@@ -245,7 +328,6 @@ export function MediaPage({ type }: Props) {
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
@@ -270,13 +352,25 @@ export function MediaPage({ type }: Props) {
       {deleteTarget && (
         <ConfirmModal
           title={`Delete ${type === 'image' ? 'Image' : 'Video'}`}
-          message={`Are you sure you want to delete "${deleteTarget.title}"? This cannot be undone.`}
+          message={`Delete "${deleteTarget.title}"? This cannot be undone.`}
           confirmLabel="Yes, delete"
           onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
           onCancel={() => setDeleteTarget(null)}
           loading={deleteMutation.isPending}
         />
       )}
+
+      {confirmDeleteAll && (
+        <ConfirmModal
+          title={`Delete ${selected.size} ${type === 'image' ? 'Image' : 'Video'}${selected.size > 1 ? 's' : ''}`}
+          message={`Are you sure you want to permanently delete ${selected.size} selected item${selected.size > 1 ? 's' : ''}? This cannot be undone.`}
+          confirmLabel={`Yes, delete ${selected.size}`}
+          onConfirm={async () => { setConfirmDeleteAll(false); await handleDeleteSelected(); }}
+          onCancel={() => setConfirmDeleteAll(false)}
+          loading={false}
+        />
+      )}
     </Layout>
   );
 }
+

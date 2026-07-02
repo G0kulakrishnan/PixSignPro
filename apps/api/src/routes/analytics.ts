@@ -7,10 +7,21 @@ export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 analyticsRouter.use(requireRole('business_admin', 'media_admin'));
 
-// GET /api/analytics
+// GET /api/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD
 // Returns the analytics table: per user × media event aggregation
 analyticsRouter.get('/', async (req, res) => {
   const businessId = req.user!.businessId;
+
+  // Optional date range filter
+  const fromDate = req.query.from ? new Date(`${req.query.from}T00:00:00.000Z`) : undefined;
+  const toDate   = req.query.to   ? new Date(`${req.query.to}T23:59:59.999Z`)   : undefined;
+
+  const eventWhere: any = { businessId };
+  if (fromDate || toDate) {
+    eventWhere.createdAt = {};
+    if (fromDate) eventWhere.createdAt.gte = fromDate;
+    if (toDate)   eventWhere.createdAt.lte = toDate;
+  }
 
   try {
     // Fetch users and their events + media in a single tenant-scoped query set
@@ -23,7 +34,7 @@ analyticsRouter.get('/', async (req, res) => {
       ),
       withTenant(businessId, (tx) =>
         tx.mediaEvent.findMany({
-          where: { businessId },
+          where: eventWhere,
           select: { userId: true, mediaId: true, eventType: true, createdAt: true },
         }),
       ),

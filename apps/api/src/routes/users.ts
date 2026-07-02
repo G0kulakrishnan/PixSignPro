@@ -19,6 +19,7 @@ const createUserSchema = z.object({
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
+  mobileNo: z.string().min(10).max(15).optional(),
   role: z.enum(['staff', 'media_admin', 'business_admin']).optional(),
   city: z.string().optional(),
   agencyName: z.string().optional(),
@@ -117,13 +118,27 @@ usersRouter.put('/:id', requireRole('business_admin'), async (req, res) => {
     return;
   }
   try {
+    // If mobileNo is being changed, ensure it's not already taken by another user
+    if (parsed.data.mobileNo) {
+      const existing = await withSystem((tx) =>
+        tx.user.findUnique({ where: { mobileNo: parsed.data.mobileNo } }),
+      );
+      if (existing && existing.id !== req.params.id) {
+        err(res, 409, 'conflict', 'Mobile number already in use by another user');
+        return;
+      }
+    }
     const user = await withTenant(req.user!.businessId, (tx) =>
-      tx.user.update({ where: { id: req.params.id }, data: parsed.data,
-        select: { id: true, name: true, role: true, isActive: true } }),
+      tx.user.update({
+        where: { id: req.params.id },
+        data: parsed.data,
+        select: { id: true, name: true, mobileNo: true, role: true, isActive: true },
+      }),
     );
     ok(res, user);
   } catch (e: any) {
     if (e?.code === 'P2025') { err(res, 404, 'not_found', 'User not found'); return; }
+    if (e?.code === 'P2002') { err(res, 409, 'conflict', 'Mobile number already in use'); return; }
     console.error('[users/update]', e);
     err(res, 500, 'server_error', 'Unexpected error');
   }

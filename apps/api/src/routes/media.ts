@@ -60,7 +60,7 @@ mediaRouter.get('/', async (req, res) => {
         },
       }),
     );
-    ok(res, items);
+    ok(res, items.map(item => ({ ...item, fileSize: Number(item.fileSize) })));
   } catch (e) {
     console.error('[media/list]', e);
     err(res, 500, 'server_error', 'Unexpected error');
@@ -170,9 +170,25 @@ mediaRouter.get('/:id', async (req, res) => {
       err(res, 404, 'not_found', 'Media not found');
       return;
     }
-    ok(res, media);
+    ok(res, { ...media, fileSize: Number(media.fileSize) });
   } catch (e) {
     console.error('[media/get]', e);
+    err(res, 500, 'server_error', 'Unexpected error');
+  }
+});
+
+// GET /api/media/:id/analytics — per-item event counts
+mediaRouter.get('/:id/analytics', requireRole('business_admin', 'media_admin'), async (req, res) => {
+  const businessId = req.user!.businessId;
+  try {
+    const [downloads, shares, views] = await Promise.all([
+      withTenant(businessId, (tx) => tx.mediaEvent.count({ where: { businessId, mediaId: req.params.id, eventType: 'download' } })),
+      withTenant(businessId, (tx) => tx.mediaEvent.count({ where: { businessId, mediaId: req.params.id, eventType: 'share' } })),
+      withTenant(businessId, (tx) => tx.mediaEvent.count({ where: { businessId, mediaId: req.params.id, eventType: 'view' } })),
+    ]);
+    ok(res, { downloads, shares, views });
+  } catch (e) {
+    console.error('[media/analytics]', e);
     err(res, 500, 'server_error', 'Unexpected error');
   }
 });

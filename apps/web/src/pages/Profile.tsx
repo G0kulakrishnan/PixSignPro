@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Camera, Lock, Check, X } from 'lucide-react';
-import { Layout } from '../components/Layout';
+import { Layout, PageHeader } from '../components/Layout';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { api, getToken } from '../api/client';
@@ -97,7 +97,8 @@ export function Profile() {
 
   return (
     <Layout>
-      <div className="py-4 space-y-4">
+      <PageHeader title="My Profile" subtitle="View and update your personal information" />
+      <div className="space-y-4">
         {/* Profile photos */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <div className="flex items-center gap-4">

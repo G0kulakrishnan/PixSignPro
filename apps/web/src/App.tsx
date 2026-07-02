@@ -6,6 +6,7 @@ import { PageSpinner } from './components/Spinner';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { MediaPage } from './pages/MediaPage';
+import { MediaAnalyticsPage } from './pages/MediaAnalyticsPage';
 import { Users } from './pages/Users';
 import { Profile } from './pages/Profile';
 import { Analytics } from './pages/Analytics';
@@ -38,6 +39,7 @@ export default function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/images" element={<MediaPage type="image" />} />
                 <Route path="/videos" element={<MediaPage type="video" />} />
+                <Route path="/media/:id/analytics" element={<MediaAnalyticsPage />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/analytics" element={<Analytics />} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Pencil, Trash2, KeyRound, ShieldCheck, UserCircle2 } from 'lucide-react';
-import { Layout } from '../components/Layout';
+import { UserPlus, Pencil, Trash2, KeyRound, UserCircle2 } from 'lucide-react';
+import { Layout, PageHeader } from '../components/Layout';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
@@ -103,7 +103,7 @@ export function Users() {
     try {
       await api(`/users/${selected.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ name: form.name, role: form.role, city: form.city || undefined }),
+        body: JSON.stringify({ name: form.name, mobileNo: form.mobileNo, role: form.role, city: form.city || undefined }),
       });
       qc.invalidateQueries({ queryKey: ['users'] });
       toast('success', 'User updated');
@@ -135,62 +135,82 @@ export function Users() {
 
   return (
     <Layout>
-      <div className="py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Users</h2>
+      <PageHeader
+        title="Users"
+        subtitle="Manage your team — add, edit, and control access"
+        action={
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium text-sm transition"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm"
           >
             <UserPlus size={16} /> Add User
           </button>
-        </div>
+        }
+      />
 
-        {isLoading ? (
-          <div className="flex justify-center py-16"><Spinner size={32} /></div>
-        ) : users.length === 0 ? (
-          <div className="text-center py-16">
-            <UserCircle2 size={48} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No users yet. Add one to get started.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {users.map(u => (
-              <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-blue-700 font-bold text-sm">
-                    {u.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900 text-sm">{u.name}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[u.role]}`}>
-                        {ROLE_LABELS[u.role]}
-                      </span>
-                      {!u.isActive && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Inactive</span>
-                      )}
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Spinner size={32} /></div>
+      ) : users.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
+          <UserCircle2 size={48} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-600 font-medium">No users yet</p>
+          <p className="text-sm text-gray-400 mt-1">Click "Add User" to invite a team member</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mobile</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">City</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Status</th>
+                <th className="px-5 py-3.5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {users.map(u => (
+                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-semibold text-gray-900">{u.name}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{u.mobileNo}</p>
-                    {u.city && <p className="text-xs text-gray-400">{u.city}</p>}
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => openResetPwd(u)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Reset password">
-                      <KeyRound size={16} />
-                    </button>
-                    <button onClick={() => openEdit(u)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => { setSelected(u); setModal('delete'); }} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                  </td>
+                  <td className="px-5 py-4 text-gray-600">{u.mobileNo}</td>
+                  <td className="px-5 py-4 text-gray-500 hidden sm:table-cell">{u.city ?? '—'}</td>
+                  <td className="px-5 py-4">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${ROLE_COLORS[u.role]}`}>
+                      {ROLE_LABELS[u.role]}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 hidden md:table-cell">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {u.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={() => openResetPwd(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Reset password">
+                        <KeyRound size={15} />
+                      </button>
+                      <button onClick={() => openEdit(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => { setSelected(u); setModal('delete'); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create User Modal */}
       {modal === 'create' && (
@@ -222,6 +242,7 @@ export function Users() {
             <h3 className="text-lg font-bold text-gray-900 mb-5">Edit User</h3>
             <form onSubmit={handleEdit} className="space-y-4">
               <Field label="Full Name"><input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className={inp} /></Field>
+              <Field label="Phone Number"><input type="tel" value={form.mobileNo} onChange={e => setForm(f => ({ ...f, mobileNo: e.target.value }))} required className={inp} placeholder="9999999999" /></Field>
               <Field label="Role">
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))} className={inp}>
                   <option value="staff">Staff (can download only)</option>
@@ -230,7 +251,6 @@ export function Users() {
                 </select>
               </Field>
               <Field label="City (optional)"><input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className={inp} /></Field>
-              <p className="text-xs text-gray-500 flex items-center gap-1"><ShieldCheck size={12} /> Phone number cannot be changed. Use Reset Password for password changes.</p>
               <ModalButtons onCancel={() => setModal(null)} saving={saving} label="Save Changes" />
             </form>
           </div>
