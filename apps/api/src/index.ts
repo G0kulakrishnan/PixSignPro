@@ -5,11 +5,16 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { authRouter } from './routes/auth';
+import { usersRouter } from './routes/users';
+import { profileRouter } from './routes/profile';
+import { mediaRouter } from './routes/media';
+import { analyticsRouter } from './routes/analytics';
+import { eventsRouter } from './routes/events';
 import { err } from './lib/response';
 
 const app = express();
 
-// --- Security baseline (see CLAUDE.md §9) ---
+// --- Security baseline ---
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(
@@ -21,16 +26,14 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 
 // --- Rate limiting ---
-// Tight limit on auth endpoints (brute-force protection)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
+  windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: 'too_many_requests', message: 'Too many requests, slow down.' } },
 });
 
-// General API limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
@@ -48,8 +51,13 @@ app.get('/health', (_req, res) => {
 
 // --- Routes ---
 app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/profile', profileRouter);
+app.use('/api/media', mediaRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/events', eventsRouter);
 
-// --- Default-deny: nothing reachable unless explicitly routed ---
+// --- Default-deny ---
 app.use((_req, res) => {
   err(res, 404, 'not_found', 'Not found');
 });

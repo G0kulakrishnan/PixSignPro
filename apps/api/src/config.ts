@@ -16,6 +16,7 @@ export const config = {
     refreshTtl: process.env.REFRESH_TOKEN_TTL ?? '7d',
   },
   storageDir: process.env.STORAGE_DIR ?? './storage',
+  maxFileSizeBytes: Number(process.env.MAX_FILE_SIZE_BYTES ?? 500 * 1024 * 1024),
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((s) => s.trim())
