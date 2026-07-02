@@ -20,7 +20,10 @@
     "db:test": "npm run -w @pixsignpro/db test",
     "db:studio": "npm run -w @pixsignpro/db studio",
     "dev:api": "npm run -w @pixsignpro/api dev",
-    "build": "npm run -w @pixsignpro/db build && npm run -w @pixsignpro/api build",
+    "dev:web": "npm run -w @pixsignpro/web dev",
+    "dev:admin": "npm run -w @pixsignpro/admin dev",
+    "build:api": "npm run -w @pixsignpro/db build && npm run -w @pixsignpro/api build",
+    "build": "npm run -w @pixsignpro/db build && npm run -w @pixsignpro/api build && npm run -w @pixsignpro/web build && npm run -w @pixsignpro/admin build",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

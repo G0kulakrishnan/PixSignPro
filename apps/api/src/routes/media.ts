@@ -177,6 +177,26 @@ mediaRouter.get('/:id', async (req, res) => {
   }
 });
 
+// GET /api/media/:id/preview — serve file for display only (no event recorded)
+mediaRouter.get('/:id/preview', async (req, res) => {
+  const businessId = req.user!.businessId;
+  const role = req.user!.role;
+  try {
+    const media = await withTenant(businessId, (tx) =>
+      tx.media.findUnique({ where: { id: req.params.id } }),
+    );
+    if (!media || !isVisible(media, role)) { res.status(404).end(); return; }
+    const absPath = path.join(config.storageDir, '..', media.filePath);
+    if (!fs.existsSync(absPath)) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', media.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    fs.createReadStream(absPath).pipe(res);
+  } catch (e) {
+    console.error('[media/preview]', e);
+    res.status(500).end();
+  }
+});
+
 // GET /api/media/:id/download — stream file (all roles)
 mediaRouter.get('/:id/download', async (req, res) => {
   const businessId = req.user!.businessId;
