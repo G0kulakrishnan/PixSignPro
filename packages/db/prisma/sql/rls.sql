@@ -20,11 +20,11 @@ ALTER TABLE businesses FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS businesses_isolation ON businesses;
 CREATE POLICY businesses_isolation ON businesses
   USING (
-    id = current_setting('app.current_business_id', true)::uuid
+    id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   )
   WITH CHECK (
-    id = current_setting('app.current_business_id', true)::uuid
+    id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   );
 
@@ -36,11 +36,11 @@ ALTER TABLE users FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS users_isolation ON users;
 CREATE POLICY users_isolation ON users
   USING (
-    business_id = current_setting('app.current_business_id', true)::uuid
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   )
   WITH CHECK (
-    business_id = current_setting('app.current_business_id', true)::uuid
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   );
 
@@ -52,11 +52,11 @@ ALTER TABLE media FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS media_isolation ON media;
 CREATE POLICY media_isolation ON media
   USING (
-    business_id = current_setting('app.current_business_id', true)::uuid
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   )
   WITH CHECK (
-    business_id = current_setting('app.current_business_id', true)::uuid
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   );
 
@@ -68,11 +68,11 @@ ALTER TABLE media_events FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS media_events_isolation ON media_events;
 CREATE POLICY media_events_isolation ON media_events
   USING (
-    business_id = current_setting('app.current_business_id', true)::uuid
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   )
   WITH CHECK (
-    business_id = current_setting('app.current_business_id', true)::uuid
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
     OR current_setting('app.bypass_rls', true) = 'on'
   );
 
