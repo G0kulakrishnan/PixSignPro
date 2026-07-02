@@ -2,40 +2,59 @@ import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import { config } from './config';
+import { authRouter } from './routes/auth';
+import { err } from './lib/response';
 
 const app = express();
-const PORT = Number(process.env.PORT ?? 3010);
 
 // --- Security baseline (see CLAUDE.md §9) ---
 app.disable('x-powered-by');
 app.use(helmet());
-
-const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
 app.use(
   cors({
-    origin: allowedOrigins.length ? allowedOrigins : false, // strict allowlist; deny by default
+    origin: config.corsOrigins.length ? config.corsOrigins : false,
     credentials: true,
   }),
 );
-
 app.use(express.json({ limit: '1mb' }));
 
-// --- Health check ---
+// --- Rate limiting ---
+// Tight limit on auth endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'too_many_requests', message: 'Too many requests, slow down.' } },
+});
+
+// General API limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter);
+
+// --- Health check (no auth) ---
 app.get('/health', (_req, res) => {
-  res.json({
-    data: { status: 'ok', service: 'pixsignpro-api', time: new Date().toISOString() },
-  });
+  res.json({ data: { status: 'ok', service: 'pixsignpro-api', time: new Date().toISOString() } });
 });
 
-// --- Default-deny catch-all: nothing is reachable unless explicitly routed ---
+// --- Routes ---
+app.use('/api/auth', authRouter);
+
+// --- Default-deny: nothing reachable unless explicitly routed ---
 app.use((_req, res) => {
-  res.status(404).json({ error: { code: 'not_found', message: 'Not found' } });
+  err(res, 404, 'not_found', 'Not found');
 });
 
-app.listen(PORT, () => {
+app.listen(config.port, () => {
   // eslint-disable-next-line no-console
-  console.log(`[pixsignpro-api] listening on :${PORT}`);
+  console.log(`[pixsignpro-api] listening on :${config.port} (${config.nodeEnv})`);
 });
