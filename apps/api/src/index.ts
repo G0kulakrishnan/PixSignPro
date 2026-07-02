@@ -10,6 +10,9 @@ import { profileRouter } from './routes/profile';
 import { mediaRouter } from './routes/media';
 import { analyticsRouter } from './routes/analytics';
 import { eventsRouter } from './routes/events';
+import { plansRouter } from './routes/admin/plans';
+import { businessesRouter } from './routes/admin/businesses';
+import { overviewRouter } from './routes/admin/overview';
 import { err } from './lib/response';
 
 const app = express();
@@ -56,6 +59,9 @@ app.use('/api/profile', profileRouter);
 app.use('/api/media', mediaRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/events', eventsRouter);
+app.use('/api/admin/plans', plansRouter);
+app.use('/api/admin/businesses', businessesRouter);
+app.use('/api/admin/overview', overviewRouter);
 
 // --- Default-deny ---
 app.use((_req, res) => {
