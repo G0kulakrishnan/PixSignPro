@@ -11,16 +11,17 @@ import { Plans } from './pages/Plans';
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
+// Navigate targets are relative to the router basename ("/admin") — no prefix here.
 function ProtectedRoutes() {
   const { admin, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  return admin ? <Outlet /> : <Navigate to="/admin/login" replace />;
+  return admin ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 function GuestRoutes() {
   const { admin, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  return admin ? <Navigate to="/admin" replace /> : <Outlet />;
+  return admin ? <Navigate to="/" replace /> : <Outlet />;
 }
 
 export default function App() {

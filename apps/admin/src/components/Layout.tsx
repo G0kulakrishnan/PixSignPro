@@ -3,10 +3,11 @@ import { LayoutDashboard, Building2, CreditCard, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import type { ReactNode } from 'react';
 
+// Paths are relative to the router basename ("/admin"), so no /admin prefix here.
 const navItems = [
-  { to: '/admin', icon: LayoutDashboard, label: 'Overview', exact: true },
-  { to: '/admin/businesses', icon: Building2, label: 'Businesses' },
-  { to: '/admin/plans', icon: CreditCard, label: 'Plans' },
+  { to: '/', icon: LayoutDashboard, label: 'Overview', exact: true },
+  { to: '/businesses', icon: Building2, label: 'Businesses' },
+  { to: '/plans', icon: CreditCard, label: 'Plans' },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
