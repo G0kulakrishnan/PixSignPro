@@ -23,6 +23,7 @@ export interface Profile {
   instagram: string | null;
   optional1: string | null;
   optional2: string | null;
+  shareMessage: string | null;
   lastAppOpenedAt: string | null;
   business: { name: string; website: string | null };
 }
@@ -31,6 +32,7 @@ export interface MediaItem {
   id: string;
   type: 'image' | 'video';
   title: string;
+  caption: string | null;
   mimeType: string;
   fileSize: number;
   scheduledPublishAt: string | null;

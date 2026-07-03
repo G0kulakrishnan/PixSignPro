@@ -55,7 +55,7 @@ mediaRouter.get('/', async (req, res) => {
         where,
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true, type: true, title: true, mimeType: true, fileSize: true,
+          id: true, type: true, title: true, caption: true, mimeType: true, fileSize: true,
           scheduledPublishAt: true, published: true, createdAt: true,
           uploadedById: true,
         },
@@ -90,6 +90,18 @@ mediaRouter.post(
     } catch {
       titles = [];
     }
+
+    // Optional: per-file captions as JSON array, or a single caption for all files.
+    let captions: (string | undefined)[] = [];
+    try {
+      captions = req.body.captions ? JSON.parse(req.body.captions) : [];
+    } catch {
+      captions = [];
+    }
+    // A single caption string applies to every file in the batch.
+    const sharedCaption = typeof req.body.caption === 'string' && req.body.caption.trim()
+      ? req.body.caption.trim()
+      : undefined;
 
     // Optional: single scheduledPublishAt for all files
     let scheduledPublishAt: Date | null = null;
@@ -141,6 +153,8 @@ mediaRouter.post(
       const created = await Promise.all(
         files.map(async (file, i) => {
           const title = titles[i] || (await generateAutoTitle(businessId));
+          const rawCaption = captions[i] ?? sharedCaption;
+          const caption = typeof rawCaption === 'string' && rawCaption.trim() ? rawCaption.trim() : null;
           const mediaType = ALLOWED_IMAGE_MIMES.has(file.mimetype) ? 'image' : 'video';
           const fileName = file.filename;
           const filePath = `/storage/${businessId}/${fileName}`;
@@ -151,6 +165,7 @@ mediaRouter.post(
                 businessId,
                 type: mediaType,
                 title,
+                caption,
                 fileName,
                 filePath,
                 fileSize: file.size,
@@ -159,7 +174,7 @@ mediaRouter.post(
                 scheduledPublishAt,
                 published: scheduledPublishAt === null,
               },
-              select: { id: true, type: true, title: true, scheduledPublishAt: true, published: true },
+              select: { id: true, type: true, title: true, caption: true, scheduledPublishAt: true, published: true },
             }),
           );
         }),
@@ -330,6 +345,7 @@ mediaRouter.delete('/:id', requireRole('media_admin', 'business_admin'), async (
 mediaRouter.patch('/:id', requireRole('media_admin', 'business_admin'), async (req, res) => {
   const schema = z.object({
     title: z.string().min(1).optional(),
+    caption: z.string().nullable().optional(),
     scheduledPublishAt: z.string().datetime().nullable().optional(),
   });
   const parsed = schema.safeParse(req.body);
@@ -340,6 +356,9 @@ mediaRouter.patch('/:id', requireRole('media_admin', 'business_admin'), async (r
 
   const data: any = {};
   if (parsed.data.title !== undefined) data.title = parsed.data.title;
+  if (parsed.data.caption !== undefined) {
+    data.caption = parsed.data.caption && parsed.data.caption.trim() ? parsed.data.caption.trim() : null;
+  }
   if (parsed.data.scheduledPublishAt !== undefined) {
     data.scheduledPublishAt = parsed.data.scheduledPublishAt
       ? new Date(parsed.data.scheduledPublishAt)
@@ -350,7 +369,7 @@ mediaRouter.patch('/:id', requireRole('media_admin', 'business_admin'), async (r
   try {
     const media = await withTenant(req.user!.businessId, (tx) =>
       tx.media.update({ where: { id: req.params.id }, data,
-        select: { id: true, title: true, scheduledPublishAt: true, published: true } }),
+        select: { id: true, title: true, caption: true, scheduledPublishAt: true, published: true } }),
     );
     ok(res, media);
   } catch (e: any) {

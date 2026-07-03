@@ -107,6 +107,7 @@ model User {
   instagram       String?
   optional1       String?
   optional2       String?
+  shareMessage    String?      @map("share_message") @db.Text // per-user default caption; fallback when a media item has no caption
   lastAppOpenedAt DateTime?    @map("last_app_opened_at")
   expiresAt       DateTime?    @map("expires_at") // per-user access expiry (null = no user-level expiry)
   isActive        Boolean      @default(true) @map("is_active")
@@ -144,6 +145,7 @@ model Media {
   businessId         String    @map("business_id") @db.Uuid
   type               MediaType
   title              String
+  caption            String?   @db.Text // optional share caption typed by the uploader; attached when the app shares this item
   fileName           String    @map("file_name") // stored (UUID) filename on disk
   filePath           String    @map("file_path") // path within storage root
   fileSize           BigInt    @map("file_size") // bytes

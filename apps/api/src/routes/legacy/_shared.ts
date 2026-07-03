@@ -149,6 +149,7 @@ interface UserRow {
   profilePicUrl: string | null; companyLogoUrl: string | null;
   youtube: string | null; website: string | null; instagram: string | null;
   optional1: string | null; optional2: string | null;
+  shareMessage?: string | null;
   expiresAt?: Date | null;
   isActive: boolean; createdAt: Date; updatedAt: Date;
 }
@@ -182,6 +183,7 @@ export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Rec
     instagram: user.instagram,
     optional_field_1: user.optional1,
     optional_field_2: user.optional2,
+    share_message: user.shareMessage ?? null,
     created_at: user.createdAt.toISOString(),
     updated_at: user.updatedAt.toISOString(),
   };
@@ -189,6 +191,7 @@ export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Rec
 
 interface MediaRow {
   legacyId: number; type: string; fileName: string; createdAt: Date;
+  caption?: string | null;
 }
 
 /** Build one media item in the app's shape (view-images / view-videos). */
@@ -202,6 +205,8 @@ export function toAppMedia(media: MediaRow, businessId: string): Record<string, 
     width: null,
     height: null,
     thumbnail_url: null,
+    // Per-item caption the app attaches when sharing (null → app falls back to the profile share_message).
+    share_message: media.caption ?? null,
     created_at: media.createdAt.toISOString(),
   };
 }

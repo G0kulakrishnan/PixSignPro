@@ -20,6 +20,7 @@ const updateProfileSchema = z.object({
   instagram: z.string().optional(),
   optional1: z.string().optional(),
   optional2: z.string().optional(),
+  shareMessage: z.string().optional(),
 });
 
 // GET /api/profile
@@ -33,6 +34,7 @@ profileRouter.get('/', async (req, res) => {
           profilePicUrl: true, companyLogoUrl: true,
           agencyName: true, city: true, youtube: true,
           website: true, instagram: true, optional1: true, optional2: true,
+          shareMessage: true,
           business: { select: { name: true, website: true } },
         },
       }),
@@ -57,7 +59,7 @@ profileRouter.put('/', async (req, res) => {
       tx.user.update({
         where: { id: req.user!.userId },
         data: parsed.data,
-        select: { id: true, name: true, agencyName: true, city: true },
+        select: { id: true, name: true, agencyName: true, city: true, shareMessage: true },
       }),
     );
     ok(res, user);

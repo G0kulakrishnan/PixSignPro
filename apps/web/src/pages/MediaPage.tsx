@@ -61,6 +61,7 @@ export function MediaPage({ type }: Props) {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadCaption, setUploadCaption] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
@@ -127,6 +128,8 @@ export function MediaPage({ type }: Props) {
       const fd = new FormData();
       uploadFiles.forEach(f => fd.append('files', f));
       if (uploadTitle.trim()) fd.append('titles', JSON.stringify([uploadTitle.trim()]));
+      // One caption applies to every file in the batch.
+      if (uploadCaption.trim()) fd.append('caption', uploadCaption.trim());
       if (scheduledAt) fd.append('scheduledPublishAt', new Date(scheduledAt).toISOString());
       await api('/media/upload', { method: 'POST', body: fd });
       qc.invalidateQueries({ queryKey: ['media', type] });
@@ -135,6 +138,7 @@ export function MediaPage({ type }: Props) {
       setShowUpload(false);
       setUploadFiles([]);
       setUploadTitle('');
+      setUploadCaption('');
       setScheduledAt('');
       if (fileRef.current) fileRef.current.value = '';
     } catch (e: unknown) {
@@ -256,12 +260,17 @@ export function MediaPage({ type }: Props) {
                   <p className={`text-xs font-semibold mt-0.5 ${isScheduled ? 'text-amber-600' : 'text-green-600'}`}>
                     {isScheduled ? 'Scheduled' : 'Published'}
                   </p>
-                  <p className="text-xs text-gray-400 mb-2">
+                  <p className="text-xs text-gray-400 mb-1">
                     {publishedAt.toLocaleString('en-IN', {
                       year: 'numeric', month: '2-digit', day: '2-digit',
                       hour: '2-digit', minute: '2-digit', hour12: true,
                     })}
                   </p>
+                  {item.caption && (
+                    <p className="text-xs text-gray-500 mb-2 line-clamp-2 whitespace-pre-line" title={item.caption}>
+                      {item.caption}
+                    </p>
+                  )}
                 </div>
 
                 {/* Actions — icon buttons */}
@@ -337,6 +346,19 @@ export function MediaPage({ type }: Props) {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Caption <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={uploadCaption}
+                  onChange={e => setUploadCaption(e.target.value)}
+                  rows={3}
+                  placeholder="Text shared along with the file (e.g. offer details, contact info)…"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Staff can include this text when they share on WhatsApp/social.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Schedule publish <span className="font-normal text-gray-400">(optional)</span>
                 </label>
                 <input
@@ -352,7 +374,7 @@ export function MediaPage({ type }: Props) {
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setShowUpload(false); setUploadFiles([]); setUploadTitle(''); setScheduledAt(''); }}
+                  onClick={() => { setShowUpload(false); setUploadFiles([]); setUploadTitle(''); setUploadCaption(''); setScheduledAt(''); }}
                   className="flex-1 border border-gray-300 rounded-xl py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel

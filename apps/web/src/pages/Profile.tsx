@@ -44,6 +44,7 @@ export function Profile() {
           instagram: form.instagram || undefined,
           optional1: form.optional1 || undefined,
           optional2: form.optional2 || undefined,
+          shareMessage: form.shareMessage || undefined,
         }),
       });
       qc.invalidateQueries({ queryKey: ['profile'] });
@@ -165,6 +166,14 @@ export function Profile() {
               <PF label="Instagram" value={p.instagram ?? ''} editing={editing} onChange={v => setForm(f => ({ ...f, instagram: v }))} placeholder="@yourhandle" />
               <PF label="Optional Field 1" value={p.optional1 ?? ''} editing={editing} onChange={v => setForm(f => ({ ...f, optional1: v }))} />
               <PF label="Optional Field 2" value={p.optional2 ?? ''} editing={editing} onChange={v => setForm(f => ({ ...f, optional2: v }))} />
+              <PF
+                label="Default share caption"
+                value={p.shareMessage ?? ''}
+                editing={editing}
+                onChange={v => setForm(f => ({ ...f, shareMessage: v }))}
+                multiline
+                placeholder="Used when a shared image has no caption of its own"
+              />
             </div>
 
             {editing && (
@@ -214,25 +223,36 @@ export function Profile() {
 }
 
 function PF({
-  label, value, editing, onChange, readOnly, required, type = 'text', placeholder,
+  label, value, editing, onChange, readOnly, required, type = 'text', placeholder, multiline,
 }: {
   label: string; value: string; editing: boolean; onChange?: (v: string) => void;
-  readOnly?: boolean; required?: boolean; type?: string; placeholder?: string;
+  readOnly?: boolean; required?: boolean; type?: string; placeholder?: string; multiline?: boolean;
 }) {
   return (
     <div>
       <label className="block text-xs font-semibold text-gray-500 mb-1">{label}</label>
       {editing && !readOnly ? (
-        <input
-          type={type}
-          value={value}
-          onChange={e => onChange?.(e.target.value)}
-          required={required}
-          placeholder={placeholder}
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        multiline ? (
+          <textarea
+            value={value}
+            onChange={e => onChange?.(e.target.value)}
+            required={required}
+            placeholder={placeholder}
+            rows={3}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        ) : (
+          <input
+            type={type}
+            value={value}
+            onChange={e => onChange?.(e.target.value)}
+            required={required}
+            placeholder={placeholder}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )
       ) : (
-        <p className={`text-sm py-2 ${value ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+        <p className={`text-sm py-2 whitespace-pre-line ${value ? 'text-gray-900' : 'text-gray-400 italic'}`}>
           {value || 'Not set'}
         </p>
       )}

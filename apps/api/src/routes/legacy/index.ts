@@ -324,6 +324,7 @@ legacyRouter.post('/update-profile.php', requireMobileAuth, profileFields, async
     if (b.instagram !== undefined) data.instagram = String(b.instagram);
     if (b.optional_field_1 !== undefined) data.optional1 = String(b.optional_field_1);
     if (b.optional_field_2 !== undefined) data.optional2 = String(b.optional_field_2);
+    if (b.share_message !== undefined) data.shareMessage = String(b.share_message);
 
     if (pic) {
       data.profilePicUrl = finalizeFile(pic.path, mu.businessId, pic.originalname);
@@ -401,7 +402,7 @@ async function listMedia(req: any, res: any, type: 'image' | 'video') {
           OR: [{ scheduledPublishAt: null }, { scheduledPublishAt: { lte: now } }, { published: true }],
         },
         orderBy: { createdAt: 'desc' },
-        select: { legacyId: true, type: true, fileName: true, createdAt: true },
+        select: { legacyId: true, type: true, fileName: true, caption: true, createdAt: true },
       }),
     );
 
@@ -460,11 +461,13 @@ function makeUploadHandler(type: 'image' | 'video', field: 'image' | 'video') {
 
       const filePath = finalizeFile(file.path, mu.businessId, file.originalname);
       const title = await generateAutoTitle(mu.businessId);
+      const rawCaption = req.body?.caption;
+      const caption = typeof rawCaption === 'string' && rawCaption.trim() ? rawCaption.trim() : null;
 
       await withTenant(mu.businessId, (tx) =>
         tx.media.create({
           data: {
-            businessId: mu.businessId, type, title,
+            businessId: mu.businessId, type, title, caption,
             fileName: path.basename(filePath), filePath,
             fileSize: file.size, mimeType: file.mimetype,
             uploadedById: mu.userId,
