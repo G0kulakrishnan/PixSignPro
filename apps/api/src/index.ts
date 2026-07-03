@@ -19,6 +19,12 @@ import { err } from './lib/response';
 
 const app = express();
 
+// --- Behind nginx reverse proxy (127.0.0.1) ---
+// Trust only the loopback hop so req.ip reflects the real client (from
+// X-Forwarded-For) without letting external clients spoof it. Required for
+// express-rate-limit to key on the correct IP.
+app.set('trust proxy', 'loopback');
+
 // --- Security baseline ---
 app.disable('x-powered-by');
 app.use(helmet());
