@@ -117,8 +117,8 @@ export function Businesses() {
                   <Th>Business</Th>
                   <Th>Plan</Th>
                   <Th>Status</Th>
-                  <Th>Sub. Start</Th>
-                  <Th>Sub. End</Th>
+                  <Th>Start Date</Th>
+                  <Th>Expiry Date</Th>
                   <Th>Users</Th>
                   <Th>Media</Th>
                   <Th></Th>
