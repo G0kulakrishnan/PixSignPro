@@ -219,8 +219,20 @@ pixsign-pro/
 - **Subscription expiry = LOCK.** On expiry the business is locked out (login blocked or
   hard read-only lock). Enforce server-side by checking `subscription_status`/`subscription_end`
   in auth middleware; super_admin can reactivate.
+- **Per-user expiry = LOCK.** `users.expires_at` (nullable). An expired user is denied login on
+  both web and mobile, independent of the business's own expiry. Set by business_admin (portal
+  Users page) or super_admin (admin Users page). Mobile `expiry_date` returns the user's own
+  expiry, falling back to the business's `subscription_end`.
+- **Plan limits by count.** `subscription_plans` carries `max_users`, `max_images`, `max_videos`,
+  `max_storage_mb` (0 = unlimited each). Enforced on upload (web + mobile) and user creation.
 - **Billing = manual v1.** No payment gateway; super_admin sets plan + subscription dates/status.
-- **Scheduled-publish notifications = none for v1.**
+- **Scheduled-publish = hourly cron + FCM push.** Cron (`apps/api/src/lib/publishCron.ts`) flips
+  `media.published` false→true when `scheduled_publish_at` passes (keeps the timestamp) and pushes
+  an FCM notification to the business's devices. FCM (`lib/fcm.ts`) is a no-op until
+  `FCM_SERVICE_ACCOUNT_PATH` points at a Firebase service-account JSON. Device tokens live in
+  `fcm_tokens` (RLS-isolated), stored via `user-fcm-store.php`.
+- **App-open analytics.** `media_events.event_type` includes `app_open` (media_id null); the
+  analytics table surfaces open counts + "opened but no download/share" rows.
 - **Legacy mobile app (Flutter) is supported via a compat layer** — see §14.
 
 ### Still to confirm
