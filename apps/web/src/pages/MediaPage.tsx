@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Download, Trash2, Clock, Image, Film, CheckSquare, Square, BarChart2, Loader2, CalendarClock } from 'lucide-react';
+import { Plus, Download, Trash2, Clock, Image, Film, CheckSquare, Square, BarChart2, Loader2, CalendarClock, Pencil, Check, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Layout, PageHeader } from '../components/Layout';
@@ -68,6 +68,8 @@ export function MediaPage({ type }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null);
+  const [editingCaptionText, setEditingCaptionText] = useState('');
   const navigate = useNavigate();
 
   const canUpload = user?.role !== 'staff';
@@ -83,6 +85,16 @@ export function MediaPage({ type }: Props) {
     queryKey: ['media', 'scheduled-summary'],
     queryFn: () => api<ScheduledSummary>('/media/scheduled/summary'),
     enabled: isAdmin,
+  });
+
+  const captionMutation = useMutation({
+    mutationFn: ({ id, caption }: { id: string; caption: string | null }) =>
+      api(`/media/${id}`, { method: 'PATCH', body: JSON.stringify({ caption }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['media', type] });
+      setEditingCaptionId(null);
+    },
+    onError: (e: Error) => toast('error', e.message || 'Could not save caption'),
   });
 
   const deleteMutation = useMutation({
@@ -266,10 +278,52 @@ export function MediaPage({ type }: Props) {
                       hour: '2-digit', minute: '2-digit', hour12: true,
                     })}
                   </p>
-                  {item.caption && (
-                    <p className="text-xs text-gray-500 mb-2 line-clamp-2 whitespace-pre-line" title={item.caption}>
-                      {item.caption}
-                    </p>
+                  {/* Caption — view or inline edit */}
+                  {editingCaptionId === item.id ? (
+                    <div className="mt-1 mb-2">
+                      <textarea
+                        autoFocus
+                        rows={3}
+                        value={editingCaptionText}
+                        onChange={e => setEditingCaptionText(e.target.value)}
+                        className="w-full text-xs border border-blue-300 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="Add a caption…"
+                      />
+                      <div className="flex gap-1.5 mt-1">
+                        <button
+                          onClick={() => captionMutation.mutate({ id: item.id, caption: editingCaptionText.trim() || null })}
+                          disabled={captionMutation.isPending}
+                          className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {captionMutation.isPending ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Save
+                        </button>
+                        <button
+                          onClick={() => setEditingCaptionId(null)}
+                          className="flex items-center gap-1 text-xs border border-gray-300 text-gray-500 px-2 py-1 rounded-md hover:bg-gray-50"
+                        >
+                          <X size={10} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="group flex items-start gap-1 mb-2 mt-1 min-h-[1rem]">
+                      {item.caption ? (
+                        <p className="text-xs text-gray-500 line-clamp-2 whitespace-pre-line flex-1" title={item.caption}>
+                          {item.caption}
+                        </p>
+                      ) : (
+                        <span className="text-xs text-gray-300 flex-1 italic">No caption</span>
+                      )}
+                      {canUpload && (
+                        <button
+                          onClick={() => { setEditingCaptionId(item.id); setEditingCaptionText(item.caption ?? ''); }}
+                          title="Edit caption"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 text-gray-400 hover:text-blue-500"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
