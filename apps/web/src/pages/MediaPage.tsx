@@ -343,9 +343,11 @@ export function MediaPage({ type }: Props) {
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={e => setScheduledAt(e.target.value)}
-                  min={new Date().toISOString().slice(0, 16)}
+                  step={3600}
+                  min={nextHourLocal()}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">Publishing runs on the hour — pick a full-hour time</p>
               </div>
               <div className="flex gap-3 pt-1">
                 <button
@@ -391,6 +393,14 @@ export function MediaPage({ type }: Props) {
       )}
     </Layout>
   );
+}
+
+function nextHourLocal() {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
 }
 
 // Banner summarising upcoming scheduled media for the current type: how many,

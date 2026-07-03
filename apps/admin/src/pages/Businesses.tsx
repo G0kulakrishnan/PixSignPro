@@ -117,6 +117,7 @@ export function Businesses() {
                   <Th>Business</Th>
                   <Th>Plan</Th>
                   <Th>Status</Th>
+                  <Th>Sub. Start</Th>
                   <Th>Sub. End</Th>
                   <Th>Users</Th>
                   <Th>Media</Th>
@@ -136,6 +137,7 @@ export function Businesses() {
                         {b.subscriptionStatus}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{b.subscriptionStart ? fmtDate(b.subscriptionStart) : '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{b.subscriptionEnd ? fmtDate(b.subscriptionEnd) : '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{b._count?.users ?? 0}</td>
                     <td className="px-4 py-3 text-gray-600">{b._count?.media ?? 0}</td>
@@ -154,7 +156,7 @@ export function Businesses() {
                   </tr>
                 ))}
                 {businesses.length === 0 && (
-                  <tr><td colSpan={7} className="py-16 text-center text-gray-400">No businesses yet</td></tr>
+                  <tr><td colSpan={8} className="py-16 text-center text-gray-400">No businesses yet</td></tr>
                 )}
               </tbody>
             </table>
