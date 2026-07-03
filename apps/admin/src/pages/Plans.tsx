@@ -15,10 +15,12 @@ interface PlanForm {
   billingPeriod: 'monthly' | 'quarterly' | 'yearly';
   maxUsers: number | '';
   maxStorageMb: number | '';
+  maxImages: number | '';
+  maxVideos: number | '';
   isActive: boolean;
 }
 
-const EMPTY: PlanForm = { name: '', price: '', currency: 'INR', billingPeriod: 'monthly', maxUsers: '', maxStorageMb: '', isActive: true };
+const EMPTY: PlanForm = { name: '', price: '', currency: 'INR', billingPeriod: 'monthly', maxUsers: '', maxStorageMb: '', maxImages: '', maxVideos: '', isActive: true };
 
 export function Plans() {
   const toast = useToast();
@@ -47,7 +49,7 @@ export function Plans() {
   function openCreate() { setForm(EMPTY); setModal('create'); }
   function openEdit(p: SubscriptionPlan) {
     setSelected(p);
-    setForm({ name: p.name, price: p.price, currency: p.currency, billingPeriod: p.billingPeriod, maxUsers: p.maxUsers, maxStorageMb: p.maxStorageMb, isActive: p.isActive });
+    setForm({ name: p.name, price: p.price, currency: p.currency, billingPeriod: p.billingPeriod, maxUsers: p.maxUsers, maxStorageMb: p.maxStorageMb, maxImages: p.maxImages, maxVideos: p.maxVideos, isActive: p.isActive });
     setModal('edit');
   }
 
@@ -55,7 +57,7 @@ export function Plans() {
     e.preventDefault();
     setSaving(true);
     try {
-      const body = { ...form, price: Number(form.price), maxUsers: Number(form.maxUsers), maxStorageMb: Number(form.maxStorageMb) };
+      const body = { ...form, price: Number(form.price), maxUsers: Number(form.maxUsers), maxStorageMb: Number(form.maxStorageMb), maxImages: Number(form.maxImages), maxVideos: Number(form.maxVideos) };
       if (modal === 'create') {
         await api('/admin/plans', { method: 'POST', body: JSON.stringify(body) });
         toast('success', 'Plan created');
@@ -109,8 +111,10 @@ export function Plans() {
                   <span className="text-sm font-normal text-gray-500">/{p.billingPeriod === 'monthly' ? 'mo' : p.billingPeriod === 'yearly' ? 'yr' : 'qtr'}</span>
                 </p>
                 <div className="space-y-1 text-sm text-gray-600">
-                  <p>👥 Up to {p.maxUsers} users</p>
-                  <p>💾 {p.maxStorageMb >= 1024 ? `${p.maxStorageMb / 1024} GB` : `${p.maxStorageMb} MB`} storage</p>
+                  <p>👥 {p.maxUsers > 0 ? `Up to ${p.maxUsers} users` : 'Unlimited users'}</p>
+                  <p>🖼️ {p.maxImages > 0 ? `${p.maxImages} images` : 'Unlimited images'}</p>
+                  <p>🎬 {p.maxVideos > 0 ? `${p.maxVideos} videos` : 'Unlimited videos'}</p>
+                  <p>💾 {p.maxStorageMb > 0 ? (p.maxStorageMb >= 1024 ? `${p.maxStorageMb / 1024} GB` : `${p.maxStorageMb} MB`) + ' storage' : 'Unlimited storage'}</p>
                 </div>
                 {!p.isActive && <p className="mt-3 text-xs text-red-600 font-medium">Deactivated</p>}
               </div>
@@ -139,9 +143,12 @@ export function Plans() {
                   <option value="yearly">Yearly</option>
                 </select>
               </AF>
+              <p className="text-xs text-gray-400 -mb-1">Enter 0 for unlimited.</p>
               <div className="grid grid-cols-2 gap-3">
-                <AF label="Max Users"><input type="number" required min={1} value={form.maxUsers} onChange={e => setForm(f => ({ ...f, maxUsers: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
-                <AF label="Storage (MB)"><input type="number" required min={1} value={form.maxStorageMb} onChange={e => setForm(f => ({ ...f, maxStorageMb: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+                <AF label="Max Users"><input type="number" required min={0} value={form.maxUsers} onChange={e => setForm(f => ({ ...f, maxUsers: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+                <AF label="Storage (MB)"><input type="number" required min={0} value={form.maxStorageMb} onChange={e => setForm(f => ({ ...f, maxStorageMb: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+                <AF label="Max Images"><input type="number" required min={0} value={form.maxImages} onChange={e => setForm(f => ({ ...f, maxImages: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+                <AF label="Max Videos"><input type="number" required min={0} value={form.maxVideos} onChange={e => setForm(f => ({ ...f, maxVideos: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setModal(null)} className="flex-1 border border-gray-300 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-50">Cancel</button>

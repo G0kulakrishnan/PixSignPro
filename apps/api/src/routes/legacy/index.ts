@@ -14,6 +14,7 @@ import rateLimit from 'express-rate-limit';
 import { withSystem, withTenant } from '@pixsignpro/db';
 import { config } from '../../config';
 import { generateAutoTitle } from '../../lib/autoName';
+import { checkMediaCountLimit } from '../../lib/planLimits';
 import { deleteFile } from '../../lib/storage';
 import {
   envelope, requireMobileAuth,
@@ -427,6 +428,18 @@ function makeUploadHandler(type: 'image' | 'video', field: 'image' | 'video') {
     try {
       const mu = req.mobileUser!;
       if (!file) { envelope(res, 400, 'error', `No ${field} uploaded`); return; }
+
+      // Enforce plan media-count limit (images/videos).
+      const countCheck = await checkMediaCountLimit(
+        mu.businessId,
+        type === 'image' ? 1 : 0,
+        type === 'video' ? 1 : 0,
+      );
+      if (!countCheck.ok) {
+        cleanupTmp(file.path);
+        envelope(res, 403, 'error', countCheck.message ?? 'Plan media limit reached');
+        return;
+      }
 
       if (!(await enforceStorage(mu.businessId, file.size))) {
         cleanupTmp(file.path);

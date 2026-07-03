@@ -50,6 +50,8 @@ model SubscriptionPlan {
   billingPeriod BillingPeriod @default(monthly) @map("billing_period")
   maxUsers      Int           @default(0) @map("max_users") // 0 = unlimited
   maxStorageMb  Int           @default(0) @map("max_storage_mb") // 0 = unlimited
+  maxImages     Int           @default(0) @map("max_images") // 0 = unlimited
+  maxVideos     Int           @default(0) @map("max_videos") // 0 = unlimited
   features      Json          @default("{}")
   isActive      Boolean       @default(true) @map("is_active")
   createdAt     DateTime      @default(now()) @map("created_at")

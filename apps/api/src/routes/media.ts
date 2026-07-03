@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
 import { uploadMedia, ALLOWED_IMAGE_MIMES } from '../middleware/upload';
 import { deleteFile } from '../lib/storage';
 import { generateAutoTitle } from '../lib/autoName';
+import { checkMediaCountLimit } from '../lib/planLimits';
 import { ok, err } from '../lib/response';
 import { config } from '../config';
 
@@ -97,8 +98,18 @@ mediaRouter.post(
       if (!isNaN(d.getTime())) scheduledPublishAt = d;
     }
 
-    // Enforce plan storage limit
+    // Enforce plan limits: media counts (images/videos) + storage.
     try {
+      const addImages = files.filter((f) => ALLOWED_IMAGE_MIMES.has(f.mimetype)).length;
+      const addVideos = files.length - addImages;
+
+      const countCheck = await checkMediaCountLimit(businessId, addImages, addVideos);
+      if (!countCheck.ok) {
+        files.forEach((f) => deleteFile(f.path));
+        err(res, 403, 'plan_limit', countCheck.message ?? 'Plan media limit reached');
+        return;
+      }
+
       const totalUploadBytes = files.reduce((sum, f) => sum + f.size, 0);
       const [storageUsed, business] = await Promise.all([
         withTenant(businessId, (tx) =>
@@ -108,16 +119,20 @@ mediaRouter.post(
           tx.business.findUnique({ where: { id: businessId }, include: { plan: true } }),
         ),
       ]);
-      const usedBytes = Number(storageUsed._sum.fileSize ?? 0);
-      const maxBytes = (business?.plan?.maxStorageMb ?? 5120) * 1024 * 1024;
-      if (usedBytes + totalUploadBytes > maxBytes) {
-        files.forEach((f) => deleteFile(f.path));
-        err(res, 403, 'storage_limit', 'Storage limit reached for your plan');
-        return;
+      // Storage limit only applies when the plan sets one (>0).
+      const maxStorageMb = business?.plan?.maxStorageMb ?? 0;
+      if (maxStorageMb > 0) {
+        const usedBytes = Number(storageUsed._sum.fileSize ?? 0);
+        const maxBytes = maxStorageMb * 1024 * 1024;
+        if (usedBytes + totalUploadBytes > maxBytes) {
+          files.forEach((f) => deleteFile(f.path));
+          err(res, 403, 'storage_limit', 'Storage limit reached for your plan');
+          return;
+        }
       }
     } catch (e) {
       files.forEach((f) => deleteFile(f.path));
-      console.error('[media/upload storage check]', e);
+      console.error('[media/upload limit check]', e);
       err(res, 500, 'server_error', 'Unexpected error');
       return;
     }

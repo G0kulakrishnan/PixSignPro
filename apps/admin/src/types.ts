@@ -11,6 +11,8 @@ export interface SubscriptionPlan {
   billingPeriod: 'monthly' | 'quarterly' | 'yearly';
   maxUsers: number;
   maxStorageMb: number;
+  maxImages: number;
+  maxVideos: number;
   features: Record<string, unknown>;
   isActive: boolean;
   createdAt: string;
