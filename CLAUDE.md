@@ -233,6 +233,15 @@ pixsign-pro/
   `fcm_tokens` (RLS-isolated), stored via `user-fcm-store.php`.
 - **App-open analytics.** `media_events.event_type` includes `app_open` (media_id null); the
   analytics table surfaces open counts + "opened but no download/share" rows.
+- **Per-media share caption.** `media.caption` (nullable text) is typed by the uploader at upload
+  (web modal + legacy mobile upload accept it; portal PATCH edits it). It rides along as the share
+  text when the app shares the item. Fallback when a media item has no caption = **`users.share_message`**
+  (nullable text), a per-user default set on the web Profile page or via legacy `update-profile.php`
+  (`share_message`). Legacy `view-images/videos.php` expose the caption as `share_message`; the app's
+  share dialog pre-fills it, with a **default-ticked "Attach caption" checkbox** (untick = share file
+  only). Instagram strips pre-filled captions, so the app **copies the caption to the clipboard** when
+  sharing to Instagram. Mobile changes ship as a patch (`pixsign-caption-mobile.patch`), applied to the
+  Flutter repo — not committed here.
 - **Legacy mobile app (Flutter) is supported via a compat layer** — see §14.
 
 ### Still to confirm
