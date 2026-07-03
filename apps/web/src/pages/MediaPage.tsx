@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Download, Trash2, Clock, Image, Film, CheckSquare, Square, BarChart2, Loader2 } from 'lucide-react';
+import { Plus, Download, Trash2, Clock, Image, Film, CheckSquare, Square, BarChart2, Loader2, CalendarClock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Layout, PageHeader } from '../components/Layout';
@@ -11,6 +11,14 @@ import { api, getToken } from '../api/client';
 import type { MediaItem } from '../types';
 
 interface Props { type: 'image' | 'video' }
+
+interface ScheduledDay {
+  date: string; total: number; images: number; videos: number;
+  items: { id: string; title: string; type: string; scheduledPublishAt: string }[];
+}
+interface ScheduledSummary {
+  total: number; images: number; videos: number; byDay: ScheduledDay[];
+}
 
 function AuthImage({ mediaId }: { mediaId: string }) {
   const [src, setSrc] = useState<string | null>(null);
@@ -70,6 +78,12 @@ export function MediaPage({ type }: Props) {
     queryFn: () => api<MediaItem[]>(`/media?type=${type}`),
   });
 
+  const { data: scheduled } = useQuery({
+    queryKey: ['media', 'scheduled-summary'],
+    queryFn: () => api<ScheduledSummary>('/media/scheduled/summary'),
+    enabled: isAdmin,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api(`/media/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
@@ -116,6 +130,7 @@ export function MediaPage({ type }: Props) {
       if (scheduledAt) fd.append('scheduledPublishAt', new Date(scheduledAt).toISOString());
       await api('/media/upload', { method: 'POST', body: fd });
       qc.invalidateQueries({ queryKey: ['media', type] });
+      qc.invalidateQueries({ queryKey: ['media', 'scheduled-summary'] });
       toast('success', `${uploadFiles.length} file${uploadFiles.length > 1 ? 's' : ''} uploaded`);
       setShowUpload(false);
       setUploadFiles([]);
@@ -175,6 +190,10 @@ export function MediaPage({ type }: Props) {
           </div>
         }
       />
+
+      {isAdmin && scheduled && scheduled.total > 0 && (
+        <ScheduledBanner summary={scheduled} type={type} />
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-20"><Spinner size={32} /></div>
@@ -371,6 +390,44 @@ export function MediaPage({ type }: Props) {
         />
       )}
     </Layout>
+  );
+}
+
+// Banner summarising upcoming scheduled media for the current type: how many,
+// and on which days. Only the count for this page's type (image/video) is shown.
+function ScheduledBanner({ summary, type }: { summary: ScheduledSummary; type: 'image' | 'video' }) {
+  const count = type === 'image' ? summary.images : summary.videos;
+  if (count === 0) return null;
+
+  const noun = type === 'image' ? 'image' : 'video';
+  const days = summary.byDay
+    .map(d => ({ ...d, typeCount: type === 'image' ? d.images : d.videos }))
+    .filter(d => d.typeCount > 0);
+
+  return (
+    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+      <div className="flex items-center gap-2 text-amber-800 font-semibold text-sm">
+        <CalendarClock size={17} />
+        {count} {noun}{count > 1 ? 's' : ''} scheduled to publish
+        {days.length > 0 && ` across ${days.length} day${days.length > 1 ? 's' : ''}`}
+      </div>
+      {days.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {days.map(d => (
+            <span
+              key={d.date}
+              className="text-xs bg-white border border-amber-200 text-amber-700 rounded-full px-2.5 py-1 font-medium"
+              title={`${d.typeCount} ${noun}${d.typeCount > 1 ? 's' : ''} on this day`}
+            >
+              {new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+              })}
+              <span className="ml-1.5 text-amber-500">×{d.typeCount}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

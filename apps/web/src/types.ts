@@ -60,6 +60,7 @@ export interface AnalyticsRow {
   imageDownloaded: number;
   videoShared: number;
   videoDownloaded: number;
+  appOpened?: number;
   appOpenedDate: string | null;
   date: string;
 }
