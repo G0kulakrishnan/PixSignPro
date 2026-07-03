@@ -436,7 +436,7 @@ export function MediaPage({ type }: Props) {
                     <option value="">-- hour --</option>
                     {availableHours(scheduledDate).map(h => (
                       <option key={h} value={String(h).padStart(2, '0')}>
-                        {String(h).padStart(2, '0')}:00
+                        {formatHour12(h)}
                       </option>
                     ))}
                   </select>
@@ -493,6 +493,13 @@ function todayLocal(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function formatHour12(h: number): string {
+  if (h === 0) return '12:00 AM';
+  if (h < 12) return `${h}:00 AM`;
+  if (h === 12) return '12:00 PM';
+  return `${h - 12}:00 PM`;
 }
 
 function availableHours(dateStr: string): number[] {
