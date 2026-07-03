@@ -62,7 +62,8 @@ export function MediaPage({ type }: Props) {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadCaption, setUploadCaption] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledHour, setScheduledHour] = useState('');
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MediaItem | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -142,7 +143,9 @@ export function MediaPage({ type }: Props) {
       if (uploadTitle.trim()) fd.append('titles', JSON.stringify([uploadTitle.trim()]));
       // One caption applies to every file in the batch.
       if (uploadCaption.trim()) fd.append('caption', uploadCaption.trim());
-      if (scheduledAt) fd.append('scheduledPublishAt', new Date(scheduledAt).toISOString());
+      if (scheduledDate && scheduledHour !== '') {
+        fd.append('scheduledPublishAt', new Date(`${scheduledDate}T${scheduledHour}:00`).toISOString());
+      }
       await api('/media/upload', { method: 'POST', body: fd });
       qc.invalidateQueries({ queryKey: ['media', type] });
       qc.invalidateQueries({ queryKey: ['media', 'scheduled-summary'] });
@@ -151,7 +154,8 @@ export function MediaPage({ type }: Props) {
       setUploadFiles([]);
       setUploadTitle('');
       setUploadCaption('');
-      setScheduledAt('');
+      setScheduledDate('');
+      setScheduledHour('');
       if (fileRef.current) fileRef.current.value = '';
     } catch (e: unknown) {
       toast('error', e instanceof Error ? e.message : 'Upload failed');
@@ -415,20 +419,34 @@ export function MediaPage({ type }: Props) {
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Schedule publish <span className="font-normal text-gray-400">(optional)</span>
                 </label>
-                <input
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  step={3600}
-                  min={nextHourLocal()}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">Publishing runs on the hour — pick a full-hour time</p>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={e => { setScheduledDate(e.target.value); setScheduledHour(''); }}
+                    min={todayLocal()}
+                    className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <select
+                    value={scheduledHour}
+                    onChange={e => setScheduledHour(e.target.value)}
+                    disabled={!scheduledDate}
+                    className="w-32 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 bg-white"
+                  >
+                    <option value="">-- hour --</option>
+                    {availableHours(scheduledDate).map(h => (
+                      <option key={h} value={String(h).padStart(2, '0')}>
+                        {String(h).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Publishing runs on the hour — pick a date then an hour</p>
               </div>
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setShowUpload(false); setUploadFiles([]); setUploadTitle(''); setUploadCaption(''); setScheduledAt(''); }}
+                  onClick={() => { setShowUpload(false); setUploadFiles([]); setUploadTitle(''); setUploadCaption(''); setScheduledDate(''); setScheduledHour(''); }}
                   className="flex-1 border border-gray-300 rounded-xl py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
@@ -471,12 +489,18 @@ export function MediaPage({ type }: Props) {
   );
 }
 
-function nextHourLocal() {
+function todayLocal(): string {
   const d = new Date();
-  d.setMinutes(0, 0, 0);
-  d.setHours(d.getHours() + 1);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function availableHours(dateStr: string): number[] {
+  const all = Array.from({ length: 24 }, (_, i) => i);
+  if (!dateStr || dateStr !== todayLocal()) return all;
+  // For today, only show future hours (next full hour onwards).
+  const minHour = new Date().getHours() + 1;
+  return all.filter(h => h >= minHour);
 }
 
 // Banner summarising upcoming scheduled media for the current type: how many,
