@@ -77,6 +77,22 @@ CREATE POLICY media_events_isolation ON media_events
   );
 
 -- ============================================================================
+-- Tenant table: fcm_tokens
+-- ============================================================================
+ALTER TABLE fcm_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fcm_tokens FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS fcm_tokens_isolation ON fcm_tokens;
+CREATE POLICY fcm_tokens_isolation ON fcm_tokens
+  USING (
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
+    OR current_setting('app.bypass_rls', true) = 'on'
+  )
+  WITH CHECK (
+    business_id = NULLIF(current_setting('app.current_business_id', true), '')::uuid
+    OR current_setting('app.bypass_rls', true) = 'on'
+  );
+
+-- ============================================================================
 -- Platform table: subscription_plans
 --   Readable by any authenticated tenant (plan catalog); writable only via bypass.
 -- ============================================================================

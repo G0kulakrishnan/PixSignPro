@@ -158,6 +158,45 @@ mediaRouter.post(
   },
 );
 
+// GET /api/media/scheduled/summary — upcoming scheduled media, grouped by day.
+// Answers "how many are scheduled, and on which days?" (business_admin/media_admin).
+mediaRouter.get('/scheduled/summary', requireRole('business_admin', 'media_admin'), async (req, res) => {
+  const businessId = req.user!.businessId;
+  try {
+    const now = new Date();
+    const items = await withTenant(businessId, (tx) =>
+      tx.media.findMany({
+        where: { businessId, published: false, scheduledPublishAt: { gt: now } },
+        orderBy: { scheduledPublishAt: 'asc' },
+        select: { id: true, title: true, type: true, scheduledPublishAt: true },
+      }),
+    );
+
+    // Group by calendar day (UTC date key; client formats for display).
+    const dayMap = new Map<string, { date: string; total: number; images: number; videos: number;
+      items: { id: string; title: string; type: string; scheduledPublishAt: string }[] }>();
+    for (const m of items) {
+      const iso = m.scheduledPublishAt!.toISOString();
+      const dayKey = iso.slice(0, 10); // YYYY-MM-DD
+      const g = dayMap.get(dayKey) ?? { date: dayKey, total: 0, images: 0, videos: 0, items: [] };
+      g.total += 1;
+      if (m.type === 'image') g.images += 1; else g.videos += 1;
+      g.items.push({ id: m.id, title: m.title, type: m.type, scheduledPublishAt: iso });
+      dayMap.set(dayKey, g);
+    }
+
+    ok(res, {
+      total: items.length,
+      images: items.filter((i) => i.type === 'image').length,
+      videos: items.filter((i) => i.type === 'video').length,
+      byDay: Array.from(dayMap.values()),
+    });
+  } catch (e) {
+    console.error('[media/scheduled-summary]', e);
+    err(res, 500, 'server_error', 'Unexpected error');
+  }
+});
+
 // GET /api/media/:id — metadata
 mediaRouter.get('/:id', async (req, res) => {
   const businessId = req.user!.businessId;

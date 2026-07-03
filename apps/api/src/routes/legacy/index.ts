@@ -482,11 +482,20 @@ legacyRouter.post('/analytics.php', requireMobileAuth, legacyUpload.none(), asyn
   try {
     const mu = req.mobileUser!;
 
-    await withTenant(mu.businessId, (tx) =>
-      tx.user.update({ where: { id: mu.userId }, data: { lastAppOpenedAt: new Date() } }),
-    );
-
-    if (type !== 'APP_OPENED') {
+    if (type === 'APP_OPENED') {
+      // Record the app-open as an analytics event (mediaId null) AND bump the
+      // user's last-opened timestamp — so we can report "opened but didn't
+      // download/share" alongside per-media activity.
+      await withTenant(mu.businessId, async (tx) => {
+        await tx.user.update({ where: { id: mu.userId }, data: { lastAppOpenedAt: new Date() } });
+        await tx.mediaEvent.create({
+          data: { businessId: mu.businessId, mediaId: null, userId: mu.userId, eventType: 'app_open' },
+        });
+      });
+    } else {
+      await withTenant(mu.businessId, (tx) =>
+        tx.user.update({ where: { id: mu.userId }, data: { lastAppOpenedAt: new Date() } }),
+      );
       const eventType = type.endsWith('_SHARED') ? 'share' : 'download';
       const legacyMediaId = imageId ?? videoId;
       if (legacyMediaId) {
@@ -511,8 +520,29 @@ legacyRouter.post('/analytics.php', requireMobileAuth, legacyUpload.none(), asyn
 });
 
 // ============================================================
-// --- 14. POST /user-fcm-store.php  (authenticated, stub) ---
+// --- 14. POST /user-fcm-store.php  (authenticated) ---------
 // ============================================================
-legacyRouter.post('/user-fcm-store.php', requireMobileAuth, (_req, res) => {
-  envelope(res, 200, 'success', 'OK');
+// Store/refresh the caller's FCM device token for push notifications.
+legacyRouter.post('/user-fcm-store.php', requireMobileAuth, legacyUpload.none(), async (req, res) => {
+  const token = String(req.body.token ?? '').trim();
+  const deviceType = String(req.body.device_type ?? '').trim() || null;
+
+  if (!token) { envelope(res, 400, 'error', 'token is required'); return; }
+
+  try {
+    const mu = req.mobileUser!;
+    // A device token is globally unique — if it was registered under another
+    // account previously, move it to this user. Use withSystem so the delete
+    // reaches a row that may belong to a different tenant.
+    await withSystem(async (tx) => {
+      await tx.fcmToken.deleteMany({ where: { token } });
+      await tx.fcmToken.create({
+        data: { businessId: mu.businessId, userId: mu.userId, token, deviceType },
+      });
+    });
+    envelope(res, 200, 'success', 'OK');
+  } catch (e) {
+    console.error('[legacy/user-fcm-store]', e);
+    envelope(res, 500, 'error', 'Unexpected error');
+  }
 });

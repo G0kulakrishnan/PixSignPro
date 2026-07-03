@@ -26,6 +26,7 @@ enum MediaEventType {
   download
   share
   view
+  app_open
 }
 
 enum SubscriptionStatus {
@@ -80,6 +81,7 @@ model Business {
   users       User[]
   media       Media[]
   mediaEvents MediaEvent[]
+  fcmTokens   FcmToken[]
 
   @@index([planId])
   @@map("businesses")
@@ -112,6 +114,7 @@ model User {
   uploadedMedia  Media[]               @relation("UploadedBy")
   mediaEvents    MediaEvent[]
   refreshTokens  MobileRefreshToken[]
+  fcmTokens      FcmToken[]
 
   @@index([businessId])
   @@map("users")
@@ -171,6 +174,25 @@ model MobileRefreshToken {
 
   @@index([userId])
   @@map("mobile_refresh_tokens")
+}
+
+/// FCM device tokens for push notifications. Tenant-scoped (RLS on business_id).
+/// A device token is globally unique; re-registering under a new user moves it.
+model FcmToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  token      String   @unique
+  deviceType String?  @map("device_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([userId])
+  @@map("fcm_tokens")
 }
 
 /// Analytics source: one row per tracked action (download / share / view / app-open).

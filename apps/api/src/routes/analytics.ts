@@ -47,8 +47,19 @@ analyticsRouter.get('/', async (req, res) => {
     ]);
 
     const mediaMap = new Map(media.map((m) => [m.id, m]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
-    // Aggregate per user + media
+    // App-open aggregation: count + latest open per user (events with no media).
+    const appOpenByUser = new Map<string, { count: number; latest: Date }>();
+    for (const ev of events) {
+      if (ev.eventType !== 'app_open' || !ev.userId) continue;
+      const cur = appOpenByUser.get(ev.userId) ?? { count: 0, latest: new Date(0) };
+      cur.count += 1;
+      if (ev.createdAt > cur.latest) cur.latest = ev.createdAt;
+      appOpenByUser.set(ev.userId, cur);
+    }
+
+    // Aggregate per user + media (download/share only).
     type Row = {
       userId: string; username: string; mobileNo: string; city: string | null;
       mediaName: string; uploadedDate: Date | null; mediaId: string;
@@ -59,7 +70,8 @@ analyticsRouter.get('/', async (req, res) => {
     const rowMap = new Map<string, Row>();
 
     for (const ev of events) {
-      const user = users.find((u) => u.id === ev.userId) ?? null;
+      if (ev.eventType === 'app_open') continue; // handled above
+      const user = ev.userId ? userMap.get(ev.userId) : undefined;
       const med = ev.mediaId ? mediaMap.get(ev.mediaId) : undefined;
       if (!user || !med) continue;
 
@@ -85,20 +97,39 @@ analyticsRouter.get('/', async (req, res) => {
       }
     }
 
-    const rows = [...rowMap.values()].map((r, i) => ({
-      sNo: i + 1,
-      username: r.username,
-      mobileNo: r.mobileNo,
-      city: r.city,
-      mediaName: r.mediaName,
-      uploadedDate: r.uploadedDate,
-      imageShared: r.imageShared,
-      imageDownloaded: r.imageDownloaded,
-      videoShared: r.videoShared,
-      videoDownloaded: r.videoDownloaded,
-      appOpenedDate: r.appOpenedDate,
-      date: r.date,
-    }));
+    // Add "opened but no media activity" rows: users who opened the app in range
+    // but have no download/share row — so admins see engagement without action.
+    const usersWithRows = new Set([...rowMap.values()].map((r) => r.userId));
+    for (const [userId, info] of appOpenByUser) {
+      if (usersWithRows.has(userId)) continue;
+      const user = userMap.get(userId);
+      if (!user) continue;
+      rowMap.set(`${userId}::app_open`, {
+        userId, username: user.name, mobileNo: user.mobileNo, city: user.city,
+        mediaName: '—', uploadedDate: null, mediaId: '',
+        imageShared: 0, imageDownloaded: 0, videoShared: 0, videoDownloaded: 0,
+        appOpenedDate: info.latest, date: info.latest.toISOString().slice(0, 10),
+      });
+    }
+
+    const rows = [...rowMap.values()].map((r, i) => {
+      const ao = appOpenByUser.get(r.userId);
+      return {
+        sNo: i + 1,
+        username: r.username,
+        mobileNo: r.mobileNo,
+        city: r.city,
+        mediaName: r.mediaName,
+        uploadedDate: r.uploadedDate,
+        imageShared: r.imageShared,
+        imageDownloaded: r.imageDownloaded,
+        videoShared: r.videoShared,
+        videoDownloaded: r.videoDownloaded,
+        appOpened: ao?.count ?? 0,
+        appOpenedDate: ao?.latest ?? r.appOpenedDate,
+        date: r.date,
+      };
+    });
 
     ok(res, rows);
   } catch (e) {

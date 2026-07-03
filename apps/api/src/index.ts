@@ -16,6 +16,8 @@ import { overviewRouter } from './routes/admin/overview';
 import { legacyRouter } from './routes/legacy';
 import { publicFilesRouter } from './routes/legacy/publicFiles';
 import { err } from './lib/response';
+import { initFcm } from './lib/fcm';
+import { startPublishCron } from './lib/publishCron';
 
 const app = express();
 
@@ -84,4 +86,8 @@ app.use((_req, res) => {
 app.listen(config.port, () => {
   // eslint-disable-next-line no-console
   console.log(`[pixsignpro-api] listening on :${config.port} (${config.nodeEnv})`);
+  // Push notifications (no-op until a Firebase service account is configured).
+  initFcm();
+  // Hourly scheduled-publish worker: flip published flag + notify devices.
+  startPublishCron();
 });
