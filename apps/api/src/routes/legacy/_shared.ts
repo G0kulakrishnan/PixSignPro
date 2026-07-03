@@ -149,15 +149,21 @@ interface UserRow {
   profilePicUrl: string | null; companyLogoUrl: string | null;
   youtube: string | null; website: string | null; instagram: string | null;
   optional1: string | null; optional2: string | null;
+  expiresAt?: Date | null;
   isActive: boolean; createdAt: Date; updatedAt: Date;
 }
 
 export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Record<string, unknown> {
+  const now = new Date();
   const businessActive =
     business.isActive &&
     business.subscriptionStatus === 'active' &&
-    (!business.subscriptionEnd || business.subscriptionEnd >= new Date());
-  const status = user.isActive && businessActive ? 'active' : 'inactive';
+    (!business.subscriptionEnd || business.subscriptionEnd >= now);
+  const userExpired = !!user.expiresAt && user.expiresAt < now;
+  const status = user.isActive && businessActive && !userExpired ? 'active' : 'inactive';
+
+  // Show the user's own expiry when set, otherwise fall back to the business's.
+  const expiry = user.expiresAt ?? business.subscriptionEnd;
 
   return {
     id: user.legacyId,
@@ -167,7 +173,7 @@ export function toAppUserDetails(user: UserRow, business: ResolvedBusiness): Rec
     agency_name: user.agencyName,
     city: user.city,
     role: roleToApp(user.role),
-    expiry_date: business.subscriptionEnd ? business.subscriptionEnd.toISOString() : null,
+    expiry_date: expiry ? expiry.toISOString() : null,
     status,
     profile_pic: signedStoredPath(business.id, user.profilePicUrl),
     logo: signedStoredPath(business.id, user.companyLogoUrl),

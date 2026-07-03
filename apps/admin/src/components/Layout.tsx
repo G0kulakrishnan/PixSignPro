@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Building2, CreditCard, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, Users as UsersIcon, CreditCard, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import type { ReactNode } from 'react';
 
@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Overview', exact: true },
   { to: '/businesses', icon: Building2, label: 'Businesses' },
+  { to: '/users', icon: UsersIcon, label: 'Users' },
   { to: '/plans', icon: CreditCard, label: 'Plans' },
 ];
 

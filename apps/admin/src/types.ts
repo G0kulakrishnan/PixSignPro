@@ -48,6 +48,27 @@ export interface BusinessDetail extends Omit<Business, '_count'> {
   _count: { media: number; mediaEvents: number; users: number };
 }
 
+export interface AdminUserRow {
+  id: string;
+  name: string;
+  mobileNo: string;
+  role: string;
+  city: string | null;
+  isActive: boolean;
+  expiresAt: string | null;
+  lastAppOpenedAt: string | null;
+  createdAt: string;
+  status: 'active' | 'inactive';
+  expired: boolean;
+  business: {
+    id: string;
+    name: string;
+    subscriptionStatus: string;
+    subscriptionEnd: string | null;
+    isActive: boolean;
+  };
+}
+
 export interface OverviewStats {
   stats: {
     totalBusinesses: number;

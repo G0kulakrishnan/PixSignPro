@@ -26,9 +26,10 @@ interface UserForm {
   role: Role;
   password: string;
   city: string;
+  expiresAt: string; // YYYY-MM-DD or ''
 }
 
-const EMPTY_FORM: UserForm = { name: '', mobileNo: '', role: 'staff', password: '', city: '' };
+const EMPTY_FORM: UserForm = { name: '', mobileNo: '', role: 'staff', password: '', city: '', expiresAt: '' };
 
 export function Users() {
   const toast = useToast();
@@ -62,7 +63,7 @@ export function Users() {
 
   function openEdit(u: User) {
     setSelected(u);
-    setForm({ name: u.name, mobileNo: u.mobileNo, role: u.role, password: '', city: u.city ?? '' });
+    setForm({ name: u.name, mobileNo: u.mobileNo, role: u.role, password: '', city: u.city ?? '', expiresAt: u.expiresAt ? u.expiresAt.slice(0, 10) : '' });
     setModal('edit');
   }
 
@@ -84,6 +85,7 @@ export function Users() {
           role: form.role,
           password: form.password,
           city: form.city || undefined,
+          expiresAt: form.expiresAt ? new Date(`${form.expiresAt}T23:59:59.999Z`).toISOString() : null,
         }),
       });
       qc.invalidateQueries({ queryKey: ['users'] });
@@ -103,7 +105,7 @@ export function Users() {
     try {
       await api(`/users/${selected.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ name: form.name, mobileNo: form.mobileNo, role: form.role, city: form.city || undefined }),
+        body: JSON.stringify({ name: form.name, mobileNo: form.mobileNo, role: form.role, city: form.city || undefined, expiresAt: form.expiresAt ? new Date(`${form.expiresAt}T23:59:59.999Z`).toISOString() : null }),
       });
       qc.invalidateQueries({ queryKey: ['users'] });
       toast('success', 'User updated');
@@ -122,7 +124,7 @@ export function Users() {
     try {
       await api(`/users/${selected.id}/reset-password`, {
         method: 'POST',
-        body: JSON.stringify({ newPassword: newPwd }),
+        body: JSON.stringify({ password: newPwd }),
       });
       toast('success', 'Password reset successfully');
       setModal(null);
@@ -166,6 +168,7 @@ export function Users() {
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">City</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Status</th>
+                <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Expiry</th>
                 <th className="px-5 py-3.5"></th>
               </tr>
             </thead>
@@ -191,6 +194,15 @@ export function Users() {
                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                       {u.isActive ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td className="px-5 py-4 hidden sm:table-cell">
+                    {u.expiresAt ? (
+                      <span className={new Date(u.expiresAt) < new Date() ? 'text-red-600 font-medium text-sm' : 'text-gray-600 text-sm'}>
+                        {fmtDate(u.expiresAt)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-sm">—</span>
+                    )}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex gap-1 justify-end">
@@ -229,6 +241,7 @@ export function Users() {
                 </select>
               </Field>
               <Field label="City (optional)"><input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className={inp} placeholder="Chennai" /></Field>
+              <Field label="Access expiry (optional)"><input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} min={new Date().toISOString().slice(0, 10)} className={inp} /></Field>
               <ModalButtons onCancel={() => setModal(null)} saving={saving} label="Create User" />
             </form>
           </div>
@@ -251,6 +264,7 @@ export function Users() {
                 </select>
               </Field>
               <Field label="City (optional)"><input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className={inp} /></Field>
+              <Field label="Access expiry (optional)"><input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} className={inp} /></Field>
               <ModalButtons onCancel={() => setModal(null)} saving={saving} label="Save Changes" />
             </form>
           </div>
@@ -288,6 +302,10 @@ export function Users() {
 }
 
 const inp = 'w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

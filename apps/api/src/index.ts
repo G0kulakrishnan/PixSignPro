@@ -13,6 +13,7 @@ import { eventsRouter } from './routes/events';
 import { plansRouter } from './routes/admin/plans';
 import { businessesRouter } from './routes/admin/businesses';
 import { overviewRouter } from './routes/admin/overview';
+import { adminUsersRouter } from './routes/admin/users';
 import { legacyRouter } from './routes/legacy';
 import { publicFilesRouter } from './routes/legacy/publicFiles';
 import { err } from './lib/response';
@@ -73,6 +74,7 @@ app.use('/api/events', eventsRouter);
 app.use('/api/admin/plans', plansRouter);
 app.use('/api/admin/businesses', businessesRouter);
 app.use('/api/admin/overview', overviewRouter);
+app.use('/api/admin/users', adminUsersRouter);
 
 // --- Legacy mobile-app compatibility (Flutter app; see MOBILE_API_PLAN.md) ---
 app.use('/uploads', publicFilesRouter);   // public, unguessable UUID capability URLs

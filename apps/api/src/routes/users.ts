@@ -15,6 +15,7 @@ const createUserSchema = z.object({
   role: z.enum(['staff', 'media_admin', 'business_admin']),
   city: z.string().optional(),
   agencyName: z.string().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
 });
 
 const updateUserSchema = z.object({
@@ -24,6 +25,7 @@ const updateUserSchema = z.object({
   city: z.string().optional(),
   agencyName: z.string().optional(),
   isActive: z.boolean().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
 });
 
 // GET /api/users — list all users in the business
@@ -33,7 +35,7 @@ usersRouter.get('/', requireRole('business_admin', 'media_admin'), async (req, r
       tx.user.findMany({
         select: {
           id: true, name: true, mobileNo: true, role: true,
-          city: true, agencyName: true, isActive: true, createdAt: true,
+          city: true, agencyName: true, isActive: true, expiresAt: true, createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
       }),
@@ -53,7 +55,7 @@ usersRouter.post('/', requireRole('business_admin'), async (req, res) => {
     return;
   }
 
-  const { mobileNo, password, name, role, city, agencyName } = parsed.data;
+  const { mobileNo, password, name, role, city, agencyName, expiresAt } = parsed.data;
   const businessId = req.user!.businessId;
 
   try {
@@ -79,8 +81,11 @@ usersRouter.post('/', requireRole('business_admin'), async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await withTenant(businessId, (tx) =>
       tx.user.create({
-        data: { businessId, mobileNo, passwordHash, name, role, city, agencyName },
-        select: { id: true, name: true, mobileNo: true, role: true, isActive: true },
+        data: {
+          businessId, mobileNo, passwordHash, name, role, city, agencyName,
+          expiresAt: expiresAt ? new Date(expiresAt) : null,
+        },
+        select: { id: true, name: true, mobileNo: true, role: true, isActive: true, expiresAt: true },
       }),
     );
     ok(res, user, 201);
@@ -98,7 +103,7 @@ usersRouter.get('/:id', requireRole('business_admin'), async (req, res) => {
         where: { id: req.params.id },
         select: {
           id: true, name: true, mobileNo: true, role: true,
-          city: true, agencyName: true, isActive: true, createdAt: true,
+          city: true, agencyName: true, isActive: true, expiresAt: true, createdAt: true,
         },
       }),
     );
@@ -128,11 +133,15 @@ usersRouter.put('/:id', requireRole('business_admin'), async (req, res) => {
         return;
       }
     }
+    const { expiresAt, ...rest } = parsed.data;
+    const data: any = { ...rest };
+    if (expiresAt !== undefined) data.expiresAt = expiresAt ? new Date(expiresAt) : null;
+
     const user = await withTenant(req.user!.businessId, (tx) =>
       tx.user.update({
         where: { id: req.params.id },
-        data: parsed.data,
-        select: { id: true, name: true, mobileNo: true, role: true, isActive: true },
+        data,
+        select: { id: true, name: true, mobileNo: true, role: true, isActive: true, expiresAt: true },
       }),
     );
     ok(res, user);

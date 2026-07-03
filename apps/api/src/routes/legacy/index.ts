@@ -109,6 +109,17 @@ legacyRouter.post('/login.php', loginLimiter, legacyUpload.none(), async (req, r
       return;
     }
 
+    if (!user.isActive) {
+      envelope(res, 403, 'error', 'Your account has been disabled');
+      return;
+    }
+
+    // Per-user expiry lock — an expired user cannot log in.
+    if (user.expiresAt && user.expiresAt < new Date()) {
+      envelope(res, 403, 'error', 'Your account has expired. Please contact support.');
+      return;
+    }
+
     const business = toResolvedBusiness(user.business);
 
     await withTenant(user.businessId, (tx) =>

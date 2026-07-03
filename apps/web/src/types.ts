@@ -46,6 +46,7 @@ export interface User {
   role: Role;
   city: string | null;
   isActive: boolean;
+  expiresAt: string | null;
   createdAt: string;
 }
 

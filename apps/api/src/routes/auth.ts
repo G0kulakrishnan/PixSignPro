@@ -55,6 +55,12 @@ authRouter.post('/login', async (req, res) => {
       return;
     }
 
+    // Per-user expiry lock — an expired user cannot log in.
+    if (user.expiresAt && user.expiresAt < new Date()) {
+      err(res, 403, 'account_expired', 'Your account has expired. Please contact support.');
+      return;
+    }
+
     // Subscription lock — expired or suspended businesses cannot log in.
     const { business } = user;
     if (!business.isActive || business.subscriptionStatus !== 'active') {
