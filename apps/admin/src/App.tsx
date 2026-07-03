@@ -15,15 +15,13 @@ const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 3
 function ProtectedRoutes() {
   const { admin, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (!admin) { window.location.replace('/admin/login'); return <PageSpinner />; }
-  return <Outlet />;
+  return admin ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 function GuestRoutes() {
   const { admin, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (admin) { window.location.replace('/admin/'); return <PageSpinner />; }
-  return <Outlet />;
+  return admin ? <Navigate to="/" replace /> : <Outlet />;
 }
 
 export default function App() {
