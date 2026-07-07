@@ -1,8 +1,9 @@
 # Mobile App API Compatibility Plan (V3 — verified against Flutter source)
 
-Goal: make the existing Flutter app (`techtogrowindia/pixsign_pro`, cloned to `pixsign_repo/`)
-work against **our** `pixsignpro` backend by changing **only** its base URL. The app code stays
-unchanged. Every one of its 12 endpoints must be served with byte-for-byte compatible contracts.
+Goal: make the existing Flutter app (`techtogrowindia/pixsignpro_new`, cloned to `pixsign_repo/`;
+the old `techtogrowindia/pixsign_pro` repo is retired) work against **our** `pixsignpro` backend by
+changing **only** its base URL. The app code stays unchanged. Every one of its 12 endpoints must be
+served with byte-for-byte compatible contracts.
 
 Source of truth for these contracts: the Dart request/response models under
 `pixsign_repo/lib/data/model/` and the call sites in `lib/domain/app_repository.dart`.

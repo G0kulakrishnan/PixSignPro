@@ -324,10 +324,10 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 
 ## 14. Legacy mobile app (Flutter) compatibility
 
-The existing Flutter app (`github.com/techtogrowindia/pixsign_pro`, cloned to `pixsign_repo/`
-for reference — **not** committed) points at our backend by changing only its base URL to
-`https://portal.pixsignpro.in/pro/api/`. We serve its fixed PHP-era contract; the app is unchanged.
-Full contract + verification log: **`MOBILE_API_PLAN.md`**.
+The existing Flutter app (`github.com/techtogrowindia/pixsignpro_new` — current repo as of
+2026-07-08; the old `techtogrowindia/pixsign_pro` repo is retired, ignore it) points at our
+backend by changing only its base URL to `https://portal.pixsignpro.in/pro/api/`. We serve its
+fixed PHP-era contract; the app is unchanged. Full contract + verification log: **`MOBILE_API_PLAN.md`**.
 
 ### Key facts (do not break these)
 - **Endpoints:** `apps/api/src/routes/legacy/` mounted at `/pro/api/*.php` (12 endpoints:
