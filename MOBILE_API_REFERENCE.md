@@ -1,7 +1,7 @@
 # PixSign Pro — Mobile API Reference (Secure v1)
 
 **Audience:** mobile app developer.
-**Base URL:** `https://dev.pixsign.in/pro/api/`
+**Base URL:** `https://portal.pixsignpro.in/pro/api/`
 **Transport:** HTTPS only. Reject cleartext (Android `usesCleartextTraffic=false`, iOS ATS on).
 
 This is the **token-authenticated** contract. Response bodies keep the familiar
@@ -60,8 +60,8 @@ Returned by login, refresh (optional), user_profile, update-profile.
   "role": "bizadmin",
   "expiry_date": "2026-12-31T00:00:00.000Z",
   "status": "active",
-  "profile_pic": "https://dev.pixsign.in/uploads/<uuid>/<file>.jpg?exp=1767200000&sig=ab12…",
-  "logo": "https://dev.pixsign.in/uploads/<uuid>/<file>.png?exp=1767200000&sig=cd34…",
+  "profile_pic": "https://portal.pixsignpro.in/uploads/<uuid>/<file>.jpg?exp=1767200000&sig=ab12…",
+  "logo": "https://portal.pixsignpro.in/uploads/<uuid>/<file>.png?exp=1767200000&sig=cd34…",
   "youtube": null,
   "website": null,
   "instagram": null,
@@ -80,7 +80,7 @@ Returned inside `view-images.php` / `view-videos.php`.
 ```json
 {
   "id": 45,
-  "image_url": "https://dev.pixsign.in/uploads/<uuid>/<file>.jpg?exp=1767200000&sig=ef56…",
+  "image_url": "https://portal.pixsignpro.in/uploads/<uuid>/<file>.jpg?exp=1767200000&sig=ef56…",
   "video_url": null,
   "width": null,
   "height": null,
@@ -362,7 +362,7 @@ Soft-deletes (deactivates) the authenticated user.
   "Status": "success",
   "message": "OK",
   "data": [
-    { "id": 45, "image_url": "https://dev.pixsign.in/uploads/…?exp=…&sig=…",
+    { "id": 45, "image_url": "https://portal.pixsignpro.in/uploads/…?exp=…&sig=…",
       "video_url": null, "width": null, "height": null, "thumbnail_url": null,
       "created_at": "2026-07-02T14:03:25.693Z" }
   ]
@@ -391,9 +391,9 @@ Soft-deletes (deactivates) the authenticated user.
   "message": "OK",
   "data": [
     { "id": 88, "image_url": null,
-      "video_url": "https://dev.pixsign.in/uploads/…?exp=…&sig=…",
+      "video_url": "https://portal.pixsignpro.in/uploads/…?exp=…&sig=…",
       "width": null, "height": null,
-      "thumbnail_url": "https://dev.pixsign.in/uploads/…?exp=…&sig=…",
+      "thumbnail_url": "https://portal.pixsignpro.in/uploads/…?exp=…&sig=…",
       "created_at": "2026-07-02T14:03:25.693Z" }
   ]
 }
@@ -550,7 +550,7 @@ Register the device's push token.
 4. On **HTTP 401**: call `refresh.php` once, retry; if it fails, clear storage → login.
 5. Treat media URLs as **short-lived**; re-fetch lists when they expire.
 6. **Logout / delete**: call the endpoint, then clear secure storage.
-7. Enforce **HTTPS only**; consider TLS certificate pinning for `dev.pixsign.in`.
+7. Enforce **HTTPS only**; consider TLS certificate pinning for `portal.pixsignpro.in`.
 
 ---
 

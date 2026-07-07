@@ -13,7 +13,7 @@ Source of truth for these contracts: the Dart request/response models under
 
 | Fact | Evidence | Consequence for us |
 |------|----------|--------------------|
-| Base URL is `https://pixsign.in/pro/api/` | `dio_client.dart:9` | Client will repoint to `https://dev.pixsign.in/pro/api/`. Our routes must live under `/pro/api/*`. |
+| Base URL is `https://pixsign.in/pro/api/` | `dio_client.dart:9` | Client will repoint to `https://portal.pixsignpro.in/pro/api/`. Our routes must live under `/pro/api/*`. |
 | Every request carries `?api-key=dfjbdfubvrhf48h3r8hfhf38rf` | `dio_client.dart:11-13` | Accept (and optionally validate) this query param; never reject on it. |
 | **No JWT / Bearer token is ever sent** | no auth header anywhere | Legacy endpoints CANNOT use `requireAuth`. Identity comes from `business_id`/`user_id` **in the request** (old PHP trust model). ⚠️ security note below. |
 | `id` and `business_id` are parsed as **`int`** | `user_login_response.dart:58-59`, `get_medias_response.dart:55` | We MUST return integers, not UUIDs. A UUID string makes Dart's `fromJson` throw and the whole call fails. Requires integer surrogate keys (§3). |
@@ -67,8 +67,8 @@ Envelope helper (legacy): `{ status_code, Status, message, ...payload }`.
   "id": 12, "business_id": 3, "name": "...", "mobile": "9876543210",
   "agency_name": "...", "city": "...", "role": "bizadmin",
   "expiry_date": "2026-12-31T00:00:00.000Z", "status": "active",
-  "profile_pic": "https://dev.pixsign.in/uploads/<uuid>/<file>.jpg",
-  "logo": "https://dev.pixsign.in/uploads/<uuid>/<file>.jpg",
+  "profile_pic": "https://portal.pixsignpro.in/uploads/<uuid>/<file>.jpg",
+  "logo": "https://portal.pixsignpro.in/uploads/<uuid>/<file>.jpg",
   "youtube": null, "website": null, "instagram": null,
   "optional_field_1": null, "optional_field_2": null,
   "created_at": "...", "updated_at": "..."
@@ -127,7 +127,7 @@ The app renders media at unauthenticated URLs. We expose one public route:
 - `businessId` is the business **UUID**; `filename` is the stored **UUID** filename (122-bit random → unguessable).
 - Strict validation: `businessId` must match UUID regex; `filename` must match `^[a-f0-9-]+\.[a-z0-9]+$` (blocks path traversal).
 - For media, only stream when `published` / past `scheduled_publish_at` (best-effort; profile pics/logos always served).
-- Base URL from new env `PUBLIC_BASE_URL=https://dev.pixsign.in`.
+- Base URL from new env `PUBLIC_BASE_URL=https://portal.pixsignpro.in`.
 
 This is a deliberate, documented exception to "media only via authorized endpoints": the legacy app
 cannot send auth for image loads, and UUID filenames are unguessable capability tokens.
@@ -208,7 +208,8 @@ per-session token. **Flagged for the owner's decision.**
 - [x] F10. fcm-store → success stub.
 - [x] F11. business `legacy_id=1` maps to the same tenant the web portal uses (shared DB) — uploads visible to both.
 
-> Verified live on 2026-07-02 against `https://dev.pixsign.in/pro/api/`. QA user/image/events cleaned up afterward.
+> Verified live on 2026-07-02 against the API (then at `dev.pixsign.in`, since migrated to
+> `portal.pixsignpro.in` — same server/endpoints). QA user/image/events cleaned up afterward.
 
 ---
 
