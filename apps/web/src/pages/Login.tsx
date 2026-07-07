@@ -47,14 +47,14 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-blue-600 flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-[#010b19] flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#141a2e] rounded-2xl mb-4 shadow-lg p-2">
+          <div className="inline-flex items-center justify-center w-28 h-28 mb-2">
             <img src="/logo.png" alt="PixSign Pro" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-white">PixSign Pro</h1>
-          <p className="text-blue-200 mt-1 text-sm">Sign in to continue</p>
+          <p className="text-gray-400 mt-1 text-sm">Sign in to continue</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-2xl">
