@@ -9,11 +9,11 @@
 the app to upload and distribute images/videos to their staff. There are two web
 surfaces plus a shared API:
 
-1. **Super Admin panel** — `pixsignpro.in/admin`. Platform operators manage
+1. **Super Admin panel** — `portal.pixsignpro.in/admin`. Platform operators manage
    businesses and subscription plans, and see all data across all tenants.
 2. **Business portal** — the tenant-facing app. Businesses manage their own media,
    users, profile, and analytics. A business can **never** see another business's data.
-3. **Landing site** — already exists at `landing.pixsign.in` (reference only, not in this repo).
+3. **Landing site** — the marketing page at `pixsignpro.in` (created separately, not in this repo).
 
 ## 2. Tech stack (decided)
 
@@ -262,7 +262,8 @@ PixSign Pro gets its **own database + dedicated DB role** on the shared Postgres
 - **VPS IP:** `85.208.51.93`
 - **Deploy user:** `pixsignpro-deploy` (SSH key: `C:/Users/Gokul/.ssh/claude_pixsignpro`)
 - **App root:** `/var/www/pixsignpro` (this is also the deploy user's home directory)
-- **Domain:** `pixsignpro.in` (HTTPS via Let's Encrypt, nginx reverse proxy)
+- **Domain:** `portal.pixsignpro.in` (webapp/portal + admin + API; HTTPS via Let's Encrypt, nginx reverse proxy).
+  `pixsignpro.in` is the separate marketing landing page.
 - **API port:** `3010`
 - **Media storage:** `/var/www/pixsignpro/storage/<business_id>/`
 
@@ -307,7 +308,7 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 > `migrate` applies pending SQL migrations to the live DB.
 
 ### Nginx config
-- Config file: `/etc/nginx/sites-available/pixsignpro.in`
+- Config file: `/etc/nginx/sites-available/portal.pixsignpro.in`
 - `/api/` → proxied to `http://127.0.0.1:3010`
 - `/admin/` → `alias /var/www/pixsignpro/apps/admin/dist/` (SPA with try_files)
 - `/` → `root /var/www/pixsignpro/apps/web/dist` (SPA with try_files)
@@ -325,7 +326,7 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 
 The existing Flutter app (`github.com/techtogrowindia/pixsign_pro`, cloned to `pixsign_repo/`
 for reference — **not** committed) points at our backend by changing only its base URL to
-`https://pixsignpro.in/pro/api/`. We serve its fixed PHP-era contract; the app is unchanged.
+`https://portal.pixsignpro.in/pro/api/`. We serve its fixed PHP-era contract; the app is unchanged.
 Full contract + verification log: **`MOBILE_API_PLAN.md`**.
 
 ### Key facts (do not break these)
