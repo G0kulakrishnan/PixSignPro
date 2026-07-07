@@ -1,15 +1,44 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { withTenant } from '@pixsignpro/db';
 import { requireAuth } from '../middleware/auth';
 import { uploadProfile } from '../middleware/upload';
 import { deleteFile } from '../lib/storage';
+import { config } from '../config';
 import { ok, err } from '../lib/response';
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
+
+const PROFILE_FILE_RE = /^[a-z0-9-]+\.[a-z0-9]+$/i;
+const PROFILE_EXT_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.webp': 'image/webp', '.gif': 'image/gif',
+};
+
+// GET /api/profile/file/:filename — serve the caller's own profile pic / company
+// logo. Tenant-scoped by the JWT (businessId never comes from the URL), so one
+// user can never read another business's files. Auth is enforced by the
+// router-level requireAuth above; AuthImg on the client sends the Bearer token.
+profileRouter.get('/file/:filename', (req, res) => {
+  const { filename } = req.params;
+  if (!PROFILE_FILE_RE.test(filename)) { res.status(404).end(); return; }
+
+  const baseDir = path.resolve(config.storageDir, req.user!.businessId);
+  const absPath = path.resolve(baseDir, filename);
+  if (absPath !== baseDir && !absPath.startsWith(baseDir + path.sep)) {
+    res.status(404).end(); return; // path traversal guard
+  }
+  if (!fs.existsSync(absPath)) { res.status(404).end(); return; }
+
+  const ext = path.extname(filename).toLowerCase();
+  res.setHeader('Content-Type', PROFILE_EXT_MIME[ext] ?? 'application/octet-stream');
+  res.setHeader('Cache-Control', 'private, max-age=3000');
+  fs.createReadStream(absPath).pipe(res);
+});
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).optional(),
@@ -102,14 +131,15 @@ profileRouter.post('/change-password', async (req, res) => {
 profileRouter.post('/picture', uploadProfile.single('file'), async (req, res) => {
   if (!req.file) { err(res, 400, 'validation_error', 'No file uploaded'); return; }
   try {
-    const url = `/storage/${req.user!.businessId}/${req.file.filename}`;
+    const url = `/api/profile/file/${req.file.filename}`;
 
-    // Delete old profile pic if exists
+    // Delete old profile pic if exists (take the filename from any URL format).
     const old = await withTenant(req.user!.businessId, (tx) =>
       tx.user.findUnique({ where: { id: req.user!.userId }, select: { profilePicUrl: true } }),
     );
     if (old?.profilePicUrl) {
-      deleteFile(path.join(process.cwd(), '..', '..', old.profilePicUrl.replace('/storage/', 'storage/')));
+      const oldName = old.profilePicUrl.split('/').pop();
+      if (oldName) deleteFile(path.join(config.storageDir, req.user!.businessId, oldName));
     }
 
     const user = await withTenant(req.user!.businessId, (tx) =>
@@ -127,13 +157,14 @@ profileRouter.post('/picture', uploadProfile.single('file'), async (req, res) =>
 profileRouter.post('/logo', uploadProfile.single('file'), async (req, res) => {
   if (!req.file) { err(res, 400, 'validation_error', 'No file uploaded'); return; }
   try {
-    const url = `/storage/${req.user!.businessId}/${req.file.filename}`;
+    const url = `/api/profile/file/${req.file.filename}`;
 
     const old = await withTenant(req.user!.businessId, (tx) =>
       tx.user.findUnique({ where: { id: req.user!.userId }, select: { companyLogoUrl: true } }),
     );
     if (old?.companyLogoUrl) {
-      deleteFile(path.join(process.cwd(), '..', '..', old.companyLogoUrl.replace('/storage/', 'storage/')));
+      const oldName = old.companyLogoUrl.split('/').pop();
+      if (oldName) deleteFile(path.join(config.storageDir, req.user!.businessId, oldName));
     }
 
     const user = await withTenant(req.user!.businessId, (tx) =>
