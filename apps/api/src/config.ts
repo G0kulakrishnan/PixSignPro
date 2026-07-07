@@ -31,5 +31,5 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
   // Base URL for building absolute media URLs returned to the mobile app.
-  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'https://dev.pixsign.in').replace(/\/$/, ''),
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? 'https://pixsignpro.in').replace(/\/$/, ''),
 };

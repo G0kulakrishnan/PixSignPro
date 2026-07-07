@@ -262,7 +262,7 @@ PixSign Pro gets its **own database + dedicated DB role** on the shared Postgres
 - **VPS IP:** `85.208.51.93`
 - **Deploy user:** `pixsignpro-deploy` (SSH key: `C:/Users/Gokul/.ssh/claude_pixsignpro`)
 - **App root:** `/var/www/pixsignpro` (this is also the deploy user's home directory)
-- **Domain:** `dev.pixsign.in` (HTTPS via Let's Encrypt, nginx reverse proxy)
+- **Domain:** `pixsignpro.in` (HTTPS via Let's Encrypt, nginx reverse proxy)
 - **API port:** `3010`
 - **Media storage:** `/var/www/pixsignpro/storage/<business_id>/`
 
@@ -307,7 +307,7 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 > `migrate` applies pending SQL migrations to the live DB.
 
 ### Nginx config
-- Config file: `/etc/nginx/sites-available/dev.pixsign.in`
+- Config file: `/etc/nginx/sites-available/pixsignpro.in`
 - `/api/` → proxied to `http://127.0.0.1:3010`
 - `/admin/` → `alias /var/www/pixsignpro/apps/admin/dist/` (SPA with try_files)
 - `/` → `root /var/www/pixsignpro/apps/web/dist` (SPA with try_files)
@@ -325,7 +325,7 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 
 The existing Flutter app (`github.com/techtogrowindia/pixsign_pro`, cloned to `pixsign_repo/`
 for reference — **not** committed) points at our backend by changing only its base URL to
-`https://dev.pixsign.in/pro/api/`. We serve its fixed PHP-era contract; the app is unchanged.
+`https://pixsignpro.in/pro/api/`. We serve its fixed PHP-era contract; the app is unchanged.
 Full contract + verification log: **`MOBILE_API_PLAN.md`**.
 
 ### Key facts (do not break these)
