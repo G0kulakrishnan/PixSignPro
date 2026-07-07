@@ -34,8 +34,8 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       {/* Brand */}
       <div className="px-5 py-5 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-black text-sm tracking-tight">PX</span>
+          <div className="w-9 h-9 bg-[#141a2e] rounded-xl flex items-center justify-center flex-shrink-0 p-1">
+            <img src="/logo.png" alt="PixSign Pro" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
             <p className="font-bold text-gray-900 text-sm leading-tight">PixSign Pro</p>
