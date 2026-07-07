@@ -18,8 +18,11 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
-      <aside className="w-56 bg-gray-900 flex flex-col fixed inset-y-0 left-0 z-10">
-        <div className="h-16 flex items-center px-5 border-b border-gray-700">
+      <aside className="w-56 bg-[#010b19] flex flex-col fixed inset-y-0 left-0 z-10">
+        <div className="h-16 flex items-center gap-2.5 px-5 border-b border-gray-700">
+          <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="PixSign Pro" className="w-full h-full object-contain" />
+          </div>
           <div>
             <p className="text-white font-bold text-sm">PixSign Pro</p>
             <p className="text-gray-400 text-xs">Super Admin</p>
