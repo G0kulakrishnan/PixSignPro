@@ -15,6 +15,7 @@ import { withSystem, withTenant } from '@pixsignpro/db';
 import { config } from '../../config';
 import { generateAutoTitle } from '../../lib/autoName';
 import { checkMediaCountLimit } from '../../lib/planLimits';
+import { notifyBusinessNewMedia } from '../../lib/notify';
 import { deleteFile } from '../../lib/storage';
 import {
   envelope, requireMobileAuth,
@@ -477,6 +478,10 @@ function makeUploadHandler(type: 'image' | 'video', field: 'image' | 'video') {
       );
 
       envelope(res, 200, 'success', `${type === 'image' ? 'Image' : 'Video'} uploaded`);
+
+      // Legacy uploads publish immediately — notify the business's devices.
+      // Fire-and-forget: a push failure must not affect the upload response.
+      void notifyBusinessNewMedia(mu.businessId, [{ type, title }]);
     } catch (e) {
       cleanupTmp(file?.path);
       console.error(`[legacy/upload-${type}]`, e);

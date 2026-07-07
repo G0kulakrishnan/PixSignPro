@@ -5,7 +5,7 @@
 // FCM notification to every device in that business announcing the new media.
 
 import { withSystem } from '@pixsignpro/db';
-import { sendPushToTokens } from './fcm';
+import { notifyBusinessNewMedia } from './notify';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -46,55 +46,8 @@ export async function runPublishPass(): Promise<void> {
   }
 
   for (const [businessId, items] of byBusiness) {
-    await notifyBusiness(businessId, items);
+    await notifyBusinessNewMedia(businessId, items);
   }
-}
-
-async function notifyBusiness(businessId: string, items: DueMedia[]): Promise<void> {
-  try {
-    const tokens = await withSystem((tx) =>
-      tx.fcmToken.findMany({ where: { businessId }, select: { token: true } }),
-    );
-    if (!tokens.length) return;
-
-    const images = items.filter((i) => i.type === 'image').length;
-    const videos = items.length - images;
-
-    const { title, body } = buildMessage(images, videos, items[0]?.title);
-    const result = await sendPushToTokens(
-      tokens.map((t) => t.token),
-      title,
-      body,
-      { type: 'media_published', count: String(items.length) },
-    );
-
-    // Prune dead tokens so we don't keep retrying them.
-    if (result.invalidTokens.length) {
-      await withSystem((tx) =>
-        tx.fcmToken.deleteMany({ where: { businessId, token: { in: result.invalidTokens } } }),
-      );
-    }
-  } catch (e) {
-    console.error(`[publish-cron] notify failed for business ${businessId}:`, e);
-  }
-}
-
-function buildMessage(images: number, videos: number, firstTitle?: string): { title: string; body: string } {
-  const total = images + videos;
-  if (total === 1) {
-    const kind = images === 1 ? 'image' : 'video';
-    return {
-      title: `New ${kind} available`,
-      body: firstTitle ? `"${firstTitle}" is now available to download.` : `A new ${kind} is ready for you.`,
-    };
-  }
-  const parts: string[] = [];
-  if (images) parts.push(`${images} image${images > 1 ? 's' : ''}`);
-  if (videos) parts.push(`${videos} video${videos > 1 ? 's' : ''}`);
-  return {
-    title: 'New media available',
-    body: `${parts.join(' and ')} are now available to download.`,
-  };
 }
 
 /** Start the hourly scheduler. Runs one pass immediately, then every hour. */

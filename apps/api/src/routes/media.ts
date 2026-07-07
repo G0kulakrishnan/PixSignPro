@@ -8,6 +8,7 @@ import { uploadMedia, ALLOWED_IMAGE_MIMES } from '../middleware/upload';
 import { deleteFile } from '../lib/storage';
 import { generateAutoTitle } from '../lib/autoName';
 import { checkMediaCountLimit } from '../lib/planLimits';
+import { notifyBusinessNewMedia } from '../lib/notify';
 import { ok, err } from '../lib/response';
 import { config } from '../config';
 
@@ -180,6 +181,12 @@ mediaRouter.post(
         }),
       );
       ok(res, created, 201);
+
+      // Notify devices about items that went live immediately (scheduled items
+      // are announced later by the publish cron when their time arrives).
+      // Fire-and-forget: never let a push failure affect the upload response.
+      const liveItems = created.filter((m) => m.published);
+      if (liveItems.length) void notifyBusinessNewMedia(businessId, liveItems);
     } catch (e) {
       files.forEach((f) => deleteFile(f.path));
       console.error('[media/upload]', e);
