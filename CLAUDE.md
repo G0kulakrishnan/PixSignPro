@@ -320,6 +320,14 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 > **Schema change checklist:** run `generate` → `migrate` → `build` in that order.
 > `generate` regenerates the Prisma TypeScript client (reads schema, no DB needed).
 > `migrate` applies pending SQL migrations to the live DB.
+>
+> **RLS gotcha — data migrations on tenant/RLS-forced tables:** migrations run as the
+> non-superuser `pixsignpro` role, so `FORCE ROW LEVEL SECURITY` applies. A plain `UPDATE`/
+> `DELETE` inside a migration on an RLS-protected table (e.g. `subscription_plans`, `users`,
+> `media`) is **silently filtered to 0 rows** by the write policy. Prefix such data statements
+> with `SET LOCAL app.bypass_rls = 'on';` (works inside the migration's transaction). DDL
+> (`ALTER TABLE`) is unaffected. Manual `psql` fixes need the same flag, or run as the `postgres`
+> superuser (superusers bypass RLS entirely).
 
 ### Nginx config
 - Config file: `/etc/nginx/sites-available/portal.pixsignpro.in`
