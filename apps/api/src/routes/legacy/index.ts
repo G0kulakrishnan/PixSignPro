@@ -431,8 +431,8 @@ async function enforceStorage(businessUuid: string, addBytes: number): Promise<b
     ),
   ]);
   const usedBytes = Number(used._sum.fileSize ?? 0);
-  const maxMb = biz?.plan?.maxStorageMb ?? 0;
-  if (maxMb <= 0) return true;
+  const maxMb = biz?.plan?.maxStorageMb ?? -1;
+  if (maxMb < 0) return true; // -1 = unlimited
   return usedBytes + addBytes <= maxMb * 1024 * 1024;
 }
 

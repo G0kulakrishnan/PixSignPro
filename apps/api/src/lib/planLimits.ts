@@ -1,5 +1,5 @@
 // Plan limit enforcement for media counts (images / videos).
-// 0 = unlimited (matches the schema convention). Enforced on every upload.
+// -1 = unlimited (matches the schema convention). Enforced on every upload.
 
 import { withSystem, withTenant } from '@pixsignpro/db';
 
@@ -32,10 +32,10 @@ export async function checkMediaCountLimit(
   const plan = business?.plan;
   if (!plan) return { ok: true }; // no plan → no count limit
 
-  if (plan.maxImages > 0 && imageCount + addImages > plan.maxImages) {
+  if (plan.maxImages >= 0 && imageCount + addImages > plan.maxImages) {
     return { ok: false, message: `Image limit reached for your plan (max ${plan.maxImages})` };
   }
-  if (plan.maxVideos > 0 && videoCount + addVideos > plan.maxVideos) {
+  if (plan.maxVideos >= 0 && videoCount + addVideos > plan.maxVideos) {
     return { ok: false, message: `Video limit reached for your plan (max ${plan.maxVideos})` };
   }
   return { ok: true };

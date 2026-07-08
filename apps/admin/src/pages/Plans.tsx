@@ -68,10 +68,10 @@ export function Plans() {
                   <span className="text-sm font-normal text-gray-500">/{p.billingPeriod === 'monthly' ? 'mo' : p.billingPeriod === 'yearly' ? 'yr' : 'qtr'}</span>
                 </p>
                 <div className="space-y-1 text-sm text-gray-600">
-                  <p>👥 {p.maxUsers > 0 ? `Up to ${p.maxUsers} users` : 'Unlimited users'}</p>
-                  <p>🖼️ {p.maxImages > 0 ? `${p.maxImages} images` : 'Unlimited images'}</p>
-                  <p>🎬 {p.maxVideos > 0 ? `${p.maxVideos} videos` : 'Unlimited videos'}</p>
-                  <p>💾 {p.maxStorageMb > 0 ? (p.maxStorageMb >= 1024 ? `${p.maxStorageMb / 1024} GB` : `${p.maxStorageMb} MB`) + ' storage' : 'Unlimited storage'}</p>
+                  <p>👥 {p.maxUsers < 0 ? 'Unlimited users' : `Up to ${p.maxUsers} users`}</p>
+                  <p>🖼️ {p.maxImages < 0 ? 'Unlimited images' : `${p.maxImages} images`}</p>
+                  <p>🎬 {p.maxVideos < 0 ? 'Unlimited videos' : `${p.maxVideos} videos`}</p>
+                  <p>💾 {p.maxStorageMb < 0 ? 'Unlimited storage' : (p.maxStorageMb >= 1024 ? `${p.maxStorageMb / 1024} GB` : `${p.maxStorageMb} MB`) + ' storage'}</p>
                 </div>
                 {!p.isActive && <p className="mt-3 text-xs text-red-600 font-medium">Deactivated</p>}
               </div>

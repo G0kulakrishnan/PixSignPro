@@ -237,7 +237,8 @@ pixsign-pro/
   Users page) or super_admin (admin Users page). Mobile `expiry_date` returns the user's own
   expiry, falling back to the business's `subscription_end`.
 - **Plan limits by count.** `subscription_plans` carries `max_users`, `max_images`, `max_videos`,
-  `max_storage_mb` (0 = unlimited each). Enforced on upload (web + mobile) and user creation.
+  `max_storage_mb` (**-1 = unlimited** each; 0 = none allowed). Enforced on upload (web + mobile),
+  user creation, and bulk staff import.
 - **Billing = manual v1.** No payment gateway; super_admin sets plan + subscription dates/status.
 - **Scheduled-publish = hourly cron + FCM push.** Cron (`apps/api/src/lib/publishCron.ts`) flips
   `media.published` false→true when `scheduled_publish_at` passes (keeps the timestamp) and pushes

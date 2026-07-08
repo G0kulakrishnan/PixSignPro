@@ -133,9 +133,9 @@ mediaRouter.post(
           tx.business.findUnique({ where: { id: businessId }, include: { plan: true } }),
         ),
       ]);
-      // Storage limit only applies when the plan sets one (>0).
-      const maxStorageMb = business?.plan?.maxStorageMb ?? 0;
-      if (maxStorageMb > 0) {
+      // Storage limit only applies when the plan sets one (>= 0); -1 = unlimited.
+      const maxStorageMb = business?.plan?.maxStorageMb ?? -1;
+      if (maxStorageMb >= 0) {
         const usedBytes = Number(storageUsed._sum.fileSize ?? 0);
         const maxBytes = maxStorageMb * 1024 * 1024;
         if (usedBytes + totalUploadBytes > maxBytes) {

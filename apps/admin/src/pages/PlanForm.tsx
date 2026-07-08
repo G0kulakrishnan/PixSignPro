@@ -101,12 +101,12 @@ export function PlanForm() {
               <option value="yearly">Yearly</option>
             </select>
           </AF>
-          <p className="text-xs text-gray-400 -mb-1">Enter 0 for unlimited.</p>
+          <p className="text-xs text-gray-400 -mb-1">Enter -1 for unlimited.</p>
           <div className="grid grid-cols-2 gap-3">
-            <AF label="Max Users"><input type="number" required min={0} value={form.maxUsers} onChange={e => setForm(f => ({ ...f, maxUsers: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
-            <AF label="Storage (MB)"><input type="number" required min={0} value={form.maxStorageMb} onChange={e => setForm(f => ({ ...f, maxStorageMb: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
-            <AF label="Max Images"><input type="number" required min={0} value={form.maxImages} onChange={e => setForm(f => ({ ...f, maxImages: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
-            <AF label="Max Videos"><input type="number" required min={0} value={form.maxVideos} onChange={e => setForm(f => ({ ...f, maxVideos: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+            <AF label="Max Users"><input type="number" required min={-1} value={form.maxUsers} onChange={e => setForm(f => ({ ...f, maxUsers: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+            <AF label="Storage (MB)"><input type="number" required min={-1} value={form.maxStorageMb} onChange={e => setForm(f => ({ ...f, maxStorageMb: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+            <AF label="Max Images"><input type="number" required min={-1} value={form.maxImages} onChange={e => setForm(f => ({ ...f, maxImages: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
+            <AF label="Max Videos"><input type="number" required min={-1} value={form.maxVideos} onChange={e => setForm(f => ({ ...f, maxVideos: e.target.value === '' ? '' : Number(e.target.value) }))} className={inp} /></AF>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => navigate('/plans')} className="border border-gray-300 rounded-lg px-5 py-2.5 text-sm font-medium hover:bg-gray-50">Cancel</button>

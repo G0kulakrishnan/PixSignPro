@@ -97,7 +97,8 @@ usersRouter.post('/', requireRole(...USER_CREATOR_ROLES), async (req, res) => {
         tx.business.findUnique({ where: { id: businessId }, include: { plan: true } }),
       ),
     ]);
-    if (business?.plan && userCount >= business.plan.maxUsers) {
+    // maxUsers -1 = unlimited; only enforce when the plan sets a real cap (>= 0).
+    if (business?.plan && business.plan.maxUsers >= 0 && userCount >= business.plan.maxUsers) {
       err(res, 403, 'plan_limit', `User limit reached (max ${business.plan.maxUsers})`);
       return;
     }
@@ -185,13 +186,13 @@ usersRouter.post('/bulk', requireRole(...USER_CREATOR_ROLES), async (req, res) =
       });
     }
 
-    // 3. Enforce plan user limit (maxUsers 0 = unlimited).
+    // 3. Enforce plan user limit (maxUsers -1 = unlimited).
     const [userCount, business] = await Promise.all([
       withTenant(businessId, (tx) => tx.user.count()),
       withSystem((tx) => tx.business.findUnique({ where: { id: businessId }, include: { plan: true } })),
     ]);
-    const maxUsers = business?.plan?.maxUsers ?? 0;
-    if (maxUsers > 0) {
+    const maxUsers = business?.plan?.maxUsers ?? -1;
+    if (maxUsers >= 0) {
       const available = Math.max(0, maxUsers - userCount);
       if (creatable.length > available) {
         creatable.slice(available).forEach((v) =>
