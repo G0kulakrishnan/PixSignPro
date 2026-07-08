@@ -6,18 +6,16 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { ROLE_LABELS, ROLE_OPTION_LABELS, assignableRoles, canManageUsers } from '../roles';
 import type { User, Role } from '../types';
-
-const ROLE_LABELS: Record<Role, string> = {
-  business_admin: 'Admin',
-  media_admin: 'Media Admin',
-  staff: 'Staff',
-};
 
 const ROLE_COLORS: Record<Role, string> = {
   business_admin: 'bg-blue-100 text-blue-700',
   media_admin: 'bg-purple-100 text-purple-700',
   staff: 'bg-gray-100 text-gray-600',
+  user_full_admin: 'bg-emerald-100 text-emerald-700',
+  user_creation_admin: 'bg-teal-100 text-teal-700',
 };
 
 interface UserForm {
@@ -34,6 +32,12 @@ const EMPTY_FORM: UserForm = { name: '', mobileNo: '', role: 'staff', password: 
 export function Users() {
   const toast = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
+
+  // Capability flags for the signed-in caller.
+  const canManage = canManageUsers(user?.role);          // list / edit / delete
+  const roleOptions = assignableRoles(user?.role);        // which roles may be assigned
+  const isCreateOnly = !canManage;                        // user_creation_admin
 
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'resetPwd' | 'delete'>(null);
   const [selected, setSelected] = useState<User | null>(null);
@@ -41,9 +45,11 @@ export function Users() {
   const [newPwd, setNewPwd] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Create-only admins can't list users (API returns 403) — skip the query.
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => api<User[]>('/users'),
+    enabled: canManage,
   });
 
   const deleteMutation = useMutation({
@@ -150,7 +156,21 @@ export function Users() {
         }
       />
 
-      {isLoading ? (
+      {isCreateOnly ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center px-6">
+          <UserPlus size={44} className="mx-auto text-blue-300 mb-3" />
+          <p className="text-gray-700 font-semibold">Add staff members</p>
+          <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+            You can create new staff accounts. Viewing and managing the existing team is handled by an admin.
+          </p>
+          <button
+            onClick={openCreate}
+            className="mt-5 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm"
+          >
+            <UserPlus size={16} /> Add Staff
+          </button>
+        </div>
+      ) : isLoading ? (
         <div className="flex justify-center py-20"><Spinner size={32} /></div>
       ) : users.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 text-center">
@@ -234,10 +254,15 @@ export function Users() {
               <Field label="Phone Number"><input type="tel" value={form.mobileNo} onChange={e => setForm(f => ({ ...f, mobileNo: e.target.value }))} required className={inp} placeholder="9999999999" /></Field>
               <Field label="Password"><input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required minLength={6} className={inp} placeholder="Minimum 6 characters" /></Field>
               <Field label="Role">
-                <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))} className={inp}>
-                  <option value="staff">Staff (can download only)</option>
-                  <option value="media_admin">Media Admin (upload & delete)</option>
-                  <option value="business_admin">Admin (full control)</option>
+                <select
+                  value={form.role}
+                  onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))}
+                  className={inp}
+                  disabled={roleOptions.length <= 1}
+                >
+                  {roleOptions.map(r => (
+                    <option key={r} value={r}>{ROLE_OPTION_LABELS[r]}</option>
+                  ))}
                 </select>
               </Field>
               <Field label="City (optional)"><input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className={inp} placeholder="Chennai" /></Field>
@@ -257,10 +282,15 @@ export function Users() {
               <Field label="Full Name"><input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className={inp} /></Field>
               <Field label="Phone Number"><input type="tel" value={form.mobileNo} onChange={e => setForm(f => ({ ...f, mobileNo: e.target.value }))} required className={inp} placeholder="9999999999" /></Field>
               <Field label="Role">
-                <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))} className={inp}>
-                  <option value="staff">Staff (can download only)</option>
-                  <option value="media_admin">Media Admin (upload & delete)</option>
-                  <option value="business_admin">Admin (full control)</option>
+                <select
+                  value={form.role}
+                  onChange={e => setForm(f => ({ ...f, role: e.target.value as Role }))}
+                  className={inp}
+                  disabled={roleOptions.length <= 1}
+                >
+                  {roleOptions.map(r => (
+                    <option key={r} value={r}>{ROLE_OPTION_LABELS[r]}</option>
+                  ))}
                 </select>
               </Field>
               <Field label="City (optional)"><input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className={inp} /></Field>

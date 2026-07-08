@@ -9,6 +9,7 @@ import { deleteFile } from '../lib/storage';
 import { generateAutoTitle } from '../lib/autoName';
 import { checkMediaCountLimit } from '../lib/planLimits';
 import { notifyBusinessNewMedia } from '../lib/notify';
+import { isDownloadOnlyRole } from '../lib/roles';
 import { ok, err } from '../lib/response';
 import { config } from '../config';
 
@@ -18,8 +19,8 @@ mediaRouter.use(requireAuth);
 // --- Helpers ---
 
 function isVisible(media: { scheduledPublishAt: Date | null; published: boolean }, role: string): boolean {
-  if (role === 'staff') {
-    // Staff can only see published or immediately-available media
+  // Download-only roles (staff + user admin roles) can't see scheduled/unpublished media.
+  if (isDownloadOnlyRole(role as never)) {
     if (!media.published && media.scheduledPublishAt && media.scheduledPublishAt > new Date()) {
       return false;
     }
@@ -42,8 +43,8 @@ mediaRouter.get('/', async (req, res) => {
     const where: any = { businessId };
     if (type === 'image' || type === 'video') where.type = type;
 
-    // Staff only see published/immediately-available media
-    if (role === 'staff') {
+    // Download-only roles only see published/immediately-available media
+    if (isDownloadOnlyRole(role as never)) {
       where.OR = [
         { scheduledPublishAt: null },
         { scheduledPublishAt: { lte: now } },

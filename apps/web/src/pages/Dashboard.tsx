@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { Layout, PageHeader } from '../components/Layout';
 import { api } from '../api/client';
+import { canViewAnalytics as roleCanViewAnalytics, canManageUsers } from '../roles';
 import type { Profile, MediaItem, User as UserType } from '../types';
 
 function StatCard({
@@ -34,7 +35,7 @@ const QUICK_ACTIONS = [
     color: 'bg-blue-50 text-blue-600',
     border: 'border-blue-100',
     to: '/images',
-    roles: ['business_admin', 'media_admin', 'staff'],
+    roles: ['business_admin', 'media_admin', 'staff', 'user_full_admin', 'user_creation_admin'],
   },
   {
     label: 'Manage Videos',
@@ -43,7 +44,7 @@ const QUICK_ACTIONS = [
     color: 'bg-purple-50 text-purple-600',
     border: 'border-purple-100',
     to: '/videos',
-    roles: ['business_admin', 'media_admin', 'staff'],
+    roles: ['business_admin', 'media_admin', 'staff', 'user_full_admin', 'user_creation_admin'],
   },
   {
     label: 'Manage Users',
@@ -52,7 +53,7 @@ const QUICK_ACTIONS = [
     color: 'bg-green-50 text-green-600',
     border: 'border-green-100',
     to: '/users',
-    roles: ['business_admin'],
+    roles: ['business_admin', 'user_full_admin', 'user_creation_admin'],
   },
   {
     label: 'Analytics',
@@ -70,7 +71,7 @@ const QUICK_ACTIONS = [
     color: 'bg-orange-50 text-orange-600',
     border: 'border-orange-100',
     to: '/profile',
-    roles: ['business_admin', 'media_admin', 'staff'],
+    roles: ['business_admin', 'media_admin', 'staff', 'user_full_admin', 'user_creation_admin'],
   },
 ];
 
@@ -93,18 +94,20 @@ export function Dashboard() {
     queryFn: () => api<MediaItem[]>('/media?type=video'),
   });
 
+  const showTeamStat = canManageUsers(user?.role);
+
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: () => api<UserType[]>('/users'),
-    enabled: user?.role === 'business_admin',
+    enabled: showTeamStat,
   });
 
   const scheduledCount = [...images, ...videos].filter(
     m => m.scheduledPublishAt && !m.published,
   ).length;
 
-  const isAdmin = user?.role === 'business_admin';
-  const canViewAnalytics = user?.role !== 'staff';
+  const isAdmin = showTeamStat;
+  const canViewAnalytics = roleCanViewAnalytics(user?.role);
 
   const tiles = QUICK_ACTIONS.filter(t => t.roles.includes(user?.role ?? ''));
 

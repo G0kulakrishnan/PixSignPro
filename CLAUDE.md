@@ -56,24 +56,37 @@ Platform role (admin panel):
 - **super_admin** — manage businesses, create/edit/delete subscription plans, view everything.
 
 Business roles (portal), stored on `users.role`:
-- **business_admin** — full control within their business: create/manage/delete staff & media
-  users, set/reset any user's password, manage media, view analytics, edit business profile.
+- **business_admin** — full control within their business: create/manage/delete users of ANY role,
+  set/reset any user's password, manage media, view analytics, edit business profile.
+- **user_full_admin** — list/create/edit/delete **staff** users only (incl. reset staff passwords).
+  Views media like staff (published only, no upload/delete). No analytics. Cannot touch non-staff users.
+- **user_creation_admin** — create **staff** users only (no list/edit/delete). Views media like staff.
+  No analytics.
 - **media_admin** — upload & delete images/videos; view analytics. Cannot manage users.
 - **staff** — download images/videos only. No upload, no delete, no user management.
 
+> **Privilege-escalation guard:** only `business_admin` may assign roles other than `staff`.
+> `user_full_admin` / `user_creation_admin` can only create/keep `staff`, and `user_full_admin`
+> may only manage users whose current role is `staff`. Enforced server-side in
+> `apps/api/src/lib/roles.ts` (mirrored in the web UI at `apps/web/src/roles.ts`). In the legacy
+> mobile app, only `media_admin`/`business_admin` map to `"bizadmin"` (upload button); the two
+> user-admin roles map to `"staff"` and are blocked from upload endpoints server-side.
+
 Permission matrix:
 
-| Action                          | staff | media_admin | business_admin | super_admin |
-|---------------------------------|:-----:|:-----------:|:--------------:|:-----------:|
-| Download media                  |  ✅   |     ✅      |      ✅        |     ✅      |
-| Upload media                    |  ❌   |     ✅      |      ✅        |     —       |
-| Delete media                    |  ❌   |     ✅      |      ✅        |     —       |
-| View analytics                  |  ❌   |     ✅      |      ✅        |     ✅      |
-| Create/edit/delete users        |  ❌   |     ❌      |      ✅        |     —       |
-| Set/reset user password         |  ❌   |     ❌      |      ✅        |     —       |
-| Edit business profile           |  ❌   |     ❌      |      ✅        |     ✅      |
-| Change own password / profile   |  ✅   |     ✅      |      ✅        |     ✅      |
-| Manage businesses & plans       |  ❌   |     ❌      |      ❌        |     ✅      |
+| Action                          | staff | media_admin | user_creation_admin | user_full_admin | business_admin | super_admin |
+|---------------------------------|:-----:|:-----------:|:-------------------:|:---------------:|:--------------:|:-----------:|
+| Download media                  |  ✅   |     ✅      |         ✅          |       ✅        |      ✅        |     ✅      |
+| Upload media                    |  ❌   |     ✅      |         ❌          |       ❌        |      ✅        |     —       |
+| Delete media                    |  ❌   |     ✅      |         ❌          |       ❌        |      ✅        |     —       |
+| View analytics                  |  ❌   |     ✅      |         ❌          |       ❌        |      ✅        |     ✅      |
+| Create staff users              |  ❌   |     ❌      |         ✅          |       ✅        |      ✅        |     —       |
+| List/edit/delete staff users    |  ❌   |     ❌      |         ❌          |       ✅        |      ✅        |     —       |
+| Create/edit/delete ANY-role user|  ❌   |     ❌      |         ❌          |       ❌        |      ✅        |     —       |
+| Set/reset staff password        |  ❌   |     ❌      |         ❌          |       ✅        |      ✅        |     —       |
+| Edit business profile           |  ❌   |     ❌      |         ❌          |       ❌        |      ✅        |     ✅      |
+| Change own password / profile   |  ✅   |     ✅      |         ✅          |       ✅        |      ✅        |     ✅      |
+| Manage businesses & plans       |  ❌   |     ❌      |         ❌          |       ❌        |      ❌        |     ✅      |
 
 ## 5. Authentication
 

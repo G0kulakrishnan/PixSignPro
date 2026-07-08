@@ -3,16 +3,24 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { withTenant, withSystem } from '@pixsignpro/db';
 import { requireAuth, requireRole } from '../middleware/auth';
+import {
+  USER_CREATOR_ROLES, USER_LIST_ROLES, USER_MANAGER_ROLES,
+  assignableRoles, canManageTarget,
+} from '../lib/roles';
 import { ok, err } from '../lib/response';
 
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
 
+const ROLE_ENUM = z.enum([
+  'staff', 'media_admin', 'business_admin', 'user_full_admin', 'user_creation_admin',
+]);
+
 const createUserSchema = z.object({
   mobileNo: z.string().min(10).max(15),
   password: z.string().min(6),
   name: z.string().min(1),
-  role: z.enum(['staff', 'media_admin', 'business_admin']),
+  role: ROLE_ENUM,
   city: z.string().optional(),
   agencyName: z.string().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
@@ -21,18 +29,28 @@ const createUserSchema = z.object({
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   mobileNo: z.string().min(10).max(15).optional(),
-  role: z.enum(['staff', 'media_admin', 'business_admin']).optional(),
+  role: ROLE_ENUM.optional(),
   city: z.string().optional(),
   agencyName: z.string().optional(),
   isActive: z.boolean().optional(),
   expiresAt: z.string().datetime().nullable().optional(),
 });
 
-// GET /api/users — list all users in the business
-usersRouter.get('/', requireRole('business_admin', 'media_admin'), async (req, res) => {
+// Load a target user's current role within the caller's tenant (RLS-scoped).
+async function loadTargetRole(businessId: string, userId: string) {
+  return withTenant(businessId, (tx) =>
+    tx.user.findUnique({ where: { id: userId }, select: { role: true } }),
+  );
+}
+
+// GET /api/users — list users in the business.
+// user_full_admin only sees staff (the users it may manage); others see all.
+usersRouter.get('/', requireRole(...USER_LIST_ROLES), async (req, res) => {
   try {
+    const scopeToStaff = req.user!.role === 'user_full_admin';
     const users = await withTenant(req.user!.businessId, (tx) =>
       tx.user.findMany({
+        where: scopeToStaff ? { role: 'staff' } : undefined,
         select: {
           id: true, name: true, mobileNo: true, role: true,
           city: true, agencyName: true, isActive: true, expiresAt: true, createdAt: true,
@@ -47,8 +65,8 @@ usersRouter.get('/', requireRole('business_admin', 'media_admin'), async (req, r
   }
 });
 
-// POST /api/users — create a new user (business_admin only)
-usersRouter.post('/', requireRole('business_admin'), async (req, res) => {
+// POST /api/users — create a new user (business_admin, user_full_admin, user_creation_admin)
+usersRouter.post('/', requireRole(...USER_CREATOR_ROLES), async (req, res) => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
     err(res, 400, 'validation_error', parsed.error.issues[0]?.message ?? 'Invalid input');
@@ -57,6 +75,12 @@ usersRouter.post('/', requireRole('business_admin'), async (req, res) => {
 
   const { mobileNo, password, name, role, city, agencyName, expiresAt } = parsed.data;
   const businessId = req.user!.businessId;
+
+  // Prevent privilege escalation: caller may only assign roles they're permitted to.
+  if (!assignableRoles(req.user!.role).includes(role)) {
+    err(res, 403, 'forbidden', 'You are not allowed to assign that role');
+    return;
+  }
 
   try {
     // mobile_no is globally unique — check across all tenants
@@ -96,7 +120,7 @@ usersRouter.post('/', requireRole('business_admin'), async (req, res) => {
 });
 
 // GET /api/users/:id
-usersRouter.get('/:id', requireRole('business_admin'), async (req, res) => {
+usersRouter.get('/:id', requireRole(...USER_MANAGER_ROLES), async (req, res) => {
   try {
     const user = await withTenant(req.user!.businessId, (tx) =>
       tx.user.findUnique({
@@ -108,6 +132,11 @@ usersRouter.get('/:id', requireRole('business_admin'), async (req, res) => {
       }),
     );
     if (!user) { err(res, 404, 'not_found', 'User not found'); return; }
+    // user_full_admin may only view staff users.
+    if (!canManageTarget(req.user!.role, user.role)) {
+      err(res, 403, 'forbidden', 'You are not allowed to manage that user');
+      return;
+    }
     ok(res, user);
   } catch (e) {
     console.error('[users/get]', e);
@@ -116,13 +145,25 @@ usersRouter.get('/:id', requireRole('business_admin'), async (req, res) => {
 });
 
 // PUT /api/users/:id
-usersRouter.put('/:id', requireRole('business_admin'), async (req, res) => {
+usersRouter.put('/:id', requireRole(...USER_MANAGER_ROLES), async (req, res) => {
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
     err(res, 400, 'validation_error', parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
   try {
+    // Verify the caller may manage this target's CURRENT role.
+    const target = await loadTargetRole(req.user!.businessId, req.params.id!);
+    if (!target) { err(res, 404, 'not_found', 'User not found'); return; }
+    if (!canManageTarget(req.user!.role, target.role)) {
+      err(res, 403, 'forbidden', 'You are not allowed to manage that user');
+      return;
+    }
+    // If a new role is requested, ensure the caller may assign it (no escalation).
+    if (parsed.data.role && !assignableRoles(req.user!.role).includes(parsed.data.role)) {
+      err(res, 403, 'forbidden', 'You are not allowed to assign that role');
+      return;
+    }
     // If mobileNo is being changed, ensure it's not already taken by another user
     if (parsed.data.mobileNo) {
       const existing = await withSystem((tx) =>
@@ -153,13 +194,19 @@ usersRouter.put('/:id', requireRole('business_admin'), async (req, res) => {
   }
 });
 
-// DELETE /api/users/:id — business_admin cannot delete themselves
-usersRouter.delete('/:id', requireRole('business_admin'), async (req, res) => {
+// DELETE /api/users/:id — a caller cannot delete themselves
+usersRouter.delete('/:id', requireRole(...USER_MANAGER_ROLES), async (req, res) => {
   if (req.params.id === req.user!.userId) {
     err(res, 400, 'bad_request', 'Cannot delete your own account');
     return;
   }
   try {
+    const target = await loadTargetRole(req.user!.businessId, req.params.id!);
+    if (!target) { err(res, 404, 'not_found', 'User not found'); return; }
+    if (!canManageTarget(req.user!.role, target.role)) {
+      err(res, 403, 'forbidden', 'You are not allowed to manage that user');
+      return;
+    }
     await withTenant(req.user!.businessId, (tx) =>
       tx.user.delete({ where: { id: req.params.id } }),
     );
@@ -171,14 +218,20 @@ usersRouter.delete('/:id', requireRole('business_admin'), async (req, res) => {
   }
 });
 
-// POST /api/users/:id/reset-password — business_admin only
-usersRouter.post('/:id/reset-password', requireRole('business_admin'), async (req, res) => {
+// POST /api/users/:id/reset-password — business_admin & user_full_admin (staff targets)
+usersRouter.post('/:id/reset-password', requireRole(...USER_MANAGER_ROLES), async (req, res) => {
   const { password } = req.body as { password?: string };
   if (!password || password.length < 6) {
     err(res, 400, 'validation_error', 'Password must be at least 6 characters');
     return;
   }
   try {
+    const target = await loadTargetRole(req.user!.businessId, req.params.id!);
+    if (!target) { err(res, 404, 'not_found', 'User not found'); return; }
+    if (!canManageTarget(req.user!.role, target.role)) {
+      err(res, 403, 'forbidden', 'You are not allowed to manage that user');
+      return;
+    }
     const passwordHash = await bcrypt.hash(password, 12);
     await withTenant(req.user!.businessId, (tx) =>
       tx.user.update({ where: { id: req.params.id }, data: { passwordHash } }),

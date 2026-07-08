@@ -8,6 +8,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { api, getToken } from '../api/client';
+import { canManageMedia } from '../roles';
 import type { MediaItem } from '../types';
 
 interface Props { type: 'image' | 'video' }
@@ -73,9 +74,11 @@ export function MediaPage({ type }: Props) {
   const [editingCaptionText, setEditingCaptionText] = useState('');
   const navigate = useNavigate();
 
-  const canUpload = user?.role !== 'staff';
-  const canDelete = user?.role !== 'staff';
-  const isAdmin = user?.role !== 'staff';
+  // Only media managers (media_admin/business_admin) can upload, delete, edit
+  // captions and see scheduled media. User-admin roles view like staff.
+  const canUpload = canManageMedia(user?.role);
+  const canDelete = canManageMedia(user?.role);
+  const isAdmin = canManageMedia(user?.role);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['media', type],

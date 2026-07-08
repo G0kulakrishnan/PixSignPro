@@ -18,6 +18,8 @@ const ROLE_LABELS: Record<string, string> = {
   business_admin: 'Admin',
   media_admin: 'Media Admin',
   staff: 'Staff',
+  user_full_admin: 'User Admin',
+  user_creation_admin: 'User Creator',
 };
 
 interface EditForm {

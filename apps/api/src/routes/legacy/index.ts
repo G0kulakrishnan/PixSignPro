@@ -16,6 +16,7 @@ import { config } from '../../config';
 import { generateAutoTitle } from '../../lib/autoName';
 import { checkMediaCountLimit } from '../../lib/planLimits';
 import { notifyBusinessNewMedia } from '../../lib/notify';
+import { isDownloadOnlyRole } from '../../lib/roles';
 import { deleteFile } from '../../lib/storage';
 import {
   envelope, requireMobileAuth,
@@ -440,6 +441,13 @@ function makeUploadHandler(type: 'image' | 'video', field: 'image' | 'video') {
     const file = req.file as Express.Multer.File | undefined;
     try {
       const mu = req.mobileUser!;
+      // Only media_admin/business_admin may upload. Download-only roles are blocked
+      // server-side even though the app hides the upload button for them.
+      if (isDownloadOnlyRole(mu.role as never)) {
+        cleanupTmp(file?.path);
+        envelope(res, 403, 'error', 'You do not have permission to upload');
+        return;
+      }
       if (!file) { envelope(res, 400, 'error', `No ${field} uploaded`); return; }
 
       // Enforce plan media-count limit (images/videos).

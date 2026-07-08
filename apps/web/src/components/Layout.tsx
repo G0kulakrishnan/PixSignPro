@@ -6,13 +6,15 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+const ALL_MEDIA_VIEWERS = ['business_admin', 'media_admin', 'staff', 'user_full_admin', 'user_creation_admin'];
+
 const NAV = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard', roles: ['business_admin', 'media_admin', 'staff'] },
-  { to: '/images',    icon: Image,           label: 'Images',    roles: ['business_admin', 'media_admin', 'staff'] },
-  { to: '/videos',    icon: Video,           label: 'Videos',    roles: ['business_admin', 'media_admin', 'staff'] },
-  { to: '/users',     icon: Users,           label: 'Users',     roles: ['business_admin'] },
+  { to: '/',          icon: LayoutDashboard, label: 'Dashboard', roles: ALL_MEDIA_VIEWERS },
+  { to: '/images',    icon: Image,           label: 'Images',    roles: ALL_MEDIA_VIEWERS },
+  { to: '/videos',    icon: Video,           label: 'Videos',    roles: ALL_MEDIA_VIEWERS },
+  { to: '/users',     icon: Users,           label: 'Users',     roles: ['business_admin', 'user_full_admin', 'user_creation_admin'] },
   { to: '/analytics', icon: BarChart2,       label: 'Analytics', roles: ['business_admin', 'media_admin'] },
-  { to: '/profile',   icon: User,            label: 'Profile',   roles: ['business_admin', 'media_admin', 'staff'] },
+  { to: '/profile',   icon: User,            label: 'Profile',   roles: ALL_MEDIA_VIEWERS },
 ] as const;
 
 function Avatar({ name, size = 'md' }: { name?: string; size?: 'sm' | 'md' }) {

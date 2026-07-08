@@ -1,4 +1,9 @@
-export type Role = 'business_admin' | 'media_admin' | 'staff';
+export type Role =
+  | 'business_admin'
+  | 'media_admin'
+  | 'staff'
+  | 'user_full_admin'
+  | 'user_creation_admin';
 
 export interface SessionUser {
   id: string;

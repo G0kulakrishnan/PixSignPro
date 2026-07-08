@@ -140,7 +140,9 @@ export async function resolveMedia(businessUuid: string, legacyMediaId: number) 
 // --- Mapping to the app's JSON shapes ------------------------------------
 
 export function roleToApp(role: string): string {
-  return role === 'staff' ? 'staff' : 'bizadmin';
+  // Only media_admin/business_admin can upload → app "bizadmin" (shows upload button).
+  // staff + user_creation_admin + user_full_admin are download-only → app "staff".
+  return role === 'media_admin' || role === 'business_admin' ? 'bizadmin' : 'staff';
 }
 
 interface UserRow {

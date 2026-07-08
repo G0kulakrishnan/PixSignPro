@@ -11,6 +11,8 @@ const ROLE_LABEL: Record<string, string> = {
   business_admin: 'Business Admin',
   media_admin: 'Media Admin',
   staff: 'Staff',
+  user_full_admin: 'User Admin',
+  user_creation_admin: 'User Creator',
 };
 
 export function Users() {
