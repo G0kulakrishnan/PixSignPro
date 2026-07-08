@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Pencil, Trash2, KeyRound, UserCircle2 } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, KeyRound, UserCircle2, Upload } from 'lucide-react';
 import { Layout, PageHeader } from '../components/Layout';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Spinner } from '../components/Spinner';
@@ -147,12 +148,20 @@ export function Users() {
         title="Users"
         subtitle="Manage your team — add, edit, and control access"
         action={
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm"
-          >
-            <UserPlus size={16} /> Add User
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/users/import"
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl font-semibold text-sm transition hover:bg-gray-50"
+            >
+              <Upload size={16} /> Import staff
+            </Link>
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm"
+            >
+              <UserPlus size={16} /> Add User
+            </button>
+          </div>
         }
       />
 
