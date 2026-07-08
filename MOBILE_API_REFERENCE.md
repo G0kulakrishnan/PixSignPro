@@ -515,8 +515,24 @@ Track downloads/shares/app-open. Used by the app after a save/share and on app o
 
 # 5. Notifications
 
+## 5.0 Push notification overview (Firebase Cloud Messaging)
+The server sends **automatic FCM push notifications** when new media is published in your business.
+This happens in two cases:
+
+1. **Immediate upload**: when images/videos are uploaded with no scheduled publish time, a push is
+   sent right away.
+2. **Scheduled publish**: when the scheduled time arrives, the media transitions from draft to
+   published and a push is sent.
+
+**Firebase Setup (already configured server-side):**
+- Project: `pixsign-pro` (project_number: `482290357821`)
+- App package: `com.t2g.pixsignpro`
+- The server uses Firebase Admin SDK to send pushes to all registered device tokens in your business.
+
+---
+
 ## 5.1 Store FCM token
-Register the device's push token.
+Register the device's push token so it receives new-media notifications.
 
 - **Method / URL:** `POST /pro/api/user-fcm-store.php`
 - **Auth:** `Authorization: Bearer <access_token>`
@@ -525,7 +541,7 @@ Register the device's push token.
 
 | Field | Required | Example |
 |-------|----------|---------|
-| `token` | yes | `<fcm device token>` |
+| `token` | yes | `<fcm device token from Firebase Messaging>` |
 | `device_type` | optional | `android` / `ios` |
 
 > Do **not** send `user_id` — taken from the token.
@@ -539,6 +555,37 @@ Register the device's push token.
 ```json
 { "status_code": 401, "Status": "error", "message": "Session expired. Please sign in again." }
 ```
+
+---
+
+## 5.2 Incoming push notification format
+When media is published, the app receives an FCM push with this structure:
+
+```json
+{
+  "notification": {
+    "title": "New image available",
+    "body": "\"My awesome photo\" is now available to download."
+  },
+  "data": {
+    "type": "media_published",
+    "count": "1"
+  }
+}
+```
+
+**Sample payloads:**
+- Single image: `{ "title": "New image available", "body": "\"Photo Title\" is now available to download." }`
+- Single video: `{ "title": "New video available", "body": "\"Video Title\" is now available to download." }`
+- Multiple: `{ "title": "New media available", "body": "2 images and 1 video are now available to download." }`
+
+**App-side implementation:**
+1. Initialize Firebase Messaging (`firebase_messaging` package).
+2. Request notification permission (iOS 13+, Android 13+).
+3. Retrieve FCM token on app launch via `FirebaseMessaging.instance.getToken()`.
+4. Call `POST /pro/api/user-fcm-store.php` to register the token (do this once per app install or when token changes).
+5. Listen to foreground & background messages via `FirebaseMessaging.onMessage` / `onBackgroundMessage`.
+6. On receive, refresh the media list (`GET /pro/api/view-images.php` + `view-videos.php`) to display new items.
 
 ---
 
