@@ -12,10 +12,10 @@ const planSchema = z.object({
   price: z.number().min(0),
   currency: z.string().default('INR'),
   billingPeriod: z.enum(['monthly', 'quarterly', 'yearly']),
-  maxUsers: z.number().int().min(0),      // 0 = unlimited
-  maxStorageMb: z.number().int().min(0),  // 0 = unlimited
-  maxImages: z.number().int().min(0),     // 0 = unlimited
-  maxVideos: z.number().int().min(0),     // 0 = unlimited
+  maxUsers: z.number().int().min(-1),      // -1 = unlimited
+  maxStorageMb: z.number().int().min(-1),  // -1 = unlimited
+  maxImages: z.number().int().min(-1),     // -1 = unlimited
+  maxVideos: z.number().int().min(-1),     // -1 = unlimited
   features: z.record(z.unknown()).optional().default({}),
   isActive: z.boolean().optional().default(true),
 });

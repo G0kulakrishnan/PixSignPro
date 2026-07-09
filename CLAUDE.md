@@ -349,29 +349,36 @@ sudo env PATH=$NODE:$PATH pm2 restart pixsignpro-api
 The existing Flutter app (`github.com/techtogrowindia/pixsignpro_new` — current repo as of
 2026-07-08; the old `techtogrowindia/pixsign_pro` repo is retired, ignore it) points at our
 backend by changing only its base URL to `https://portal.pixsignpro.in/pro/api/`. We serve its
-fixed PHP-era contract; the app is unchanged. Full contract + verification log: **`MOBILE_API_PLAN.md`**.
+fixed PHP-era contract (response shapes + integer ids); the app itself is unchanged. Full
+endpoint-by-endpoint reference: **`API.md`** (§ Legacy Mobile API). Original contract mapping:
+`MOBILE_API_PLAN.md`. Auth-hardening design (now implemented — see below): `MOBILE_SECURITY_PLAN.md`.
 
 ### Key facts (do not break these)
-- **Endpoints:** `apps/api/src/routes/legacy/` mounted at `/pro/api/*.php` (12 endpoints:
-  login, user_profile, delete-user, register, update-profile, update-password, view-images,
-  view-videos, upload-image, upload-video, analytics, user-fcm-store).
+- **Endpoints:** `apps/api/src/routes/legacy/` mounted at `/pro/api/*.php` (14 endpoints:
+  login, refresh, logout, register, user_profile, delete-user, update-profile, update-password,
+  view-images, view-videos, upload-image, upload-video, analytics, user-fcm-store).
 - **Envelope:** every legacy response is HTTP **200** with body `{ status_code, Status, message, ... }`
   — capital-S `Status` (`"success"`/`"error"`). This differs from the portal's `{data}`/`{error}`.
 - **Integer ids:** app parses ids as `int`. Businesses/users/media carry a `legacy_id`
   (`Int @unique @default(autoincrement())`) surrogate; UUIDs stay internal. Legacy routes
   resolve int→UUID in, UUID→int out. Never expose UUIDs to the app.
-- **Role mapping:** `business_admin`+`media_admin` → `"bizadmin"` (upload button); `staff` → `"staff"`.
-- **Auth model:** app sends **no JWT** — only `business_id`/`user_id` in the request + a static
-  `api-key` query param (`LEGACY_API_KEY`). Legacy routes use `requireApiKey`, verify user∈business,
-  and still run every query through `withTenant()` so RLS applies. This is weaker than the portal
-  (IDOR-prone by the app's design); true fix needs an app update. Documented tradeoff.
-- **Public media:** app loads images with no auth, so media/profile files are served at
-  `GET /uploads/:businessId/:filename` (public, UUID-named = unguessable capability URLs,
-  traversal-guarded). `image_url`/`profile_pic`/`logo` are returned as **full absolute URLs**
-  built from `PUBLIC_BASE_URL`.
+- **Role mapping:** `business_admin`+`media_admin` → `"bizadmin"` (upload button); everyone else
+  (`staff`, `user_full_admin`, `user_creation_admin`) → `"staff"`.
+- **Auth model: Bearer JWT (hardened, superseding the original api-key design).** `POST /login.php`
+  returns a short-lived (15m) JWT access token + an opaque, DB-backed refresh token (30d, hashed
+  at rest in `mobile_refresh_tokens`, rotated on each `/refresh.php` call, revoked on
+  logout/password-change/delete-user). Every other endpoint requires `Authorization: Bearer
+  <access_token>`; `business_id`/`user_id`/`role` are derived **from the token**, never trusted
+  from the request. There is **no `api-key` parameter anymore** — it was removed. All DB work still
+  runs through `withTenant()` so RLS applies.
+- **Public media: signed capability URLs**, not plain public paths. `GET
+  /uploads/:businessId/:filename?exp=<unix>&sig=<hmac>` — HMAC-SHA256 signed (`MEDIA_SIGN_SECRET`),
+  ~1 hour validity, traversal-guarded. `image_url`/`profile_pic`/`logo` are returned as full,
+  pre-signed absolute URLs built from `PUBLIC_BASE_URL`.
 - **nginx:** `location /pro/api/` (client_max_body_size 550m) and `location /uploads/` both proxy
   to `127.0.0.1:3010`.
-- **New env:** `PUBLIC_BASE_URL`, `LEGACY_API_KEY` (see `.env.example`).
+- **New env:** `PUBLIC_BASE_URL`, `MOBILE_JWT_ACCESS_SECRET`, `MEDIA_SIGN_SECRET`,
+  `MOBILE_ACCESS_TTL` (default `15m`), `MOBILE_REFRESH_TTL_DAYS` (default `30`) (see `.env.example`).
 - **Analytics `type` values from the app:** `APP_OPENED`, `IMAGE_DOWNLOADED`, `IMAGE_SHARED`,
   `VIDEO_DOWNLOADED`, `VIDEO_SHARED` (→ `download`/`share` events; `APP_OPENED` just bumps
   `last_app_opened_at`).

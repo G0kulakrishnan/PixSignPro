@@ -1,5 +1,11 @@
 # Mobile App API Compatibility Plan (V3 — verified against Flutter source)
 
+> **Historical design doc — the auth model described here (static `api-key` +
+> client-sent `business_id`/`user_id`, §0/§5) was superseded by `MOBILE_SECURITY_PLAN.md`'s
+> Bearer JWT + refresh-token hardening, which is what's actually deployed. Current source of
+> truth for the live contract: `API.md` (§ Legacy Mobile API). Endpoint inventory, response
+> shapes, and the integer-id / envelope decisions below are still accurate.**
+
 Goal: make the existing Flutter app (`techtogrowindia/pixsignpro_new`, cloned to `pixsign_repo/`;
 the old `techtogrowindia/pixsign_pro` repo is retired) work against **our** `pixsignpro` backend by
 changing **only** its base URL. The app code stays unchanged. Every one of its 12 endpoints must be

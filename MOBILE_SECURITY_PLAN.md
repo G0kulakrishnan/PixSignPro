@@ -1,5 +1,10 @@
 # Mobile App — Security Hardening Plan
 
+> **Status: implemented.** The backend side (§4.A, B1–B7) is live — Bearer JWT + refresh
+> rotation + signed media URLs. The checklist below predates that work and reads as a proposal;
+> for the current live contract, see `API.md` (§ Legacy Mobile API). Kept here as the design
+> rationale/decision record for *why* the hardening was built this way.
+
 Purpose: replace the legacy PHP-era trust model with proper token auth so the mobile app is as
 secure as the web portal. This document is written to be handed to the **app developer** — it
 states exactly what changes on the **app side** and what we change on the **backend side**, and the
