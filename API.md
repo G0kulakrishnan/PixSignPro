@@ -638,7 +638,51 @@ applicable — integer legacy id). `user_id` is never sent; identity is the toke
 
 #### 14. Store FCM token
 `POST /user-fcm-store.php` (Bearer) — `token` (required), `device_type` (optional). Registers
-the device for new-media push notifications.
+the device for new-media push notifications. A device token is globally unique — if it was
+previously registered under a different account, it's moved to the caller.
+
+### Push Notifications (Firebase Cloud Messaging)
+
+**Setup:** server-side only, no app change needed. Set `FCM_SERVICE_ACCOUNT_PATH` in `apps/api/.env`
+to the path of a Firebase service-account JSON (`apps/api/src/lib/fcm.ts`). Until that's set, push
+sending is a **logged no-op** — everything else (registration, uploads, cron) still works, pushes
+just don't go out. No restart-time error if unconfigured.
+
+**What triggers a push** — both paths call the same helper (`lib/notify.ts`):
+1. **Immediate upload** — `POST /media/upload` (portal) or `/upload-image.php` /
+   `/upload-video.php` (legacy) with no `scheduledPublishAt` → publishes immediately → pushes right away.
+2. **Scheduled publish** — an hourly cron (`apps/api/src/lib/publishCron.ts`) flips `media.published`
+   `false → true` once `scheduled_publish_at` passes, then pushes.
+
+**Recipients:** every device token registered for the business (table `fcm_tokens`, RLS-isolated,
+populated via `POST /user-fcm-store.php`). Tokens that FCM reports as unregistered/invalid
+(`messaging/registration-token-not-registered`, `invalid-registration-token`, `invalid-argument`)
+are pruned automatically after each send.
+
+**Payload shape:**
+```json
+{
+  "notification": { "title": "New image available", "body": "\"Product Shot\" is now available to download." },
+  "data": { "type": "media_published", "count": "1" },
+  "android": { "priority": "high", "notification": { "channelId": "pixsign_alarm_v6" } }
+}
+```
+
+**Title/body templates** (`buildMediaMessage` in `lib/notify.ts`):
+| Case | Title | Body |
+|------|-------|------|
+| 1 image | `New image available` | `"<title>" is now available to download.` |
+| 1 video | `New video available` | `"<title>" is now available to download.` |
+| Multiple (mixed) | `New media available` | `2 images and 1 video are now available to download.` |
+
+**App-side handling:**
+1. Initialize Firebase Messaging (`firebase_messaging` package), request notification permission.
+2. Get the device's FCM token, `POST /user-fcm-store.php` once per install (or when the token rotates).
+3. Listen for foreground/background messages; on receive, re-fetch `view-images.php` /
+   `view-videos.php` to show the new items (the payload doesn't include media details, just a count).
+
+Push failures never fail the triggering request (upload / cron tick) — sending is fire-and-forget
+with its own try/catch.
 
 ---
 
