@@ -54,12 +54,13 @@ export interface AdminUserRow {
   mobileNo: string;
   role: string;
   city: string | null;
+  agencyName: string | null;
   isActive: boolean;
   expiresAt: string | null;
   lastAppOpenedAt: string | null;
   createdAt: string;
-  status: 'active' | 'inactive';
-  expired: boolean;
+  status?: 'active' | 'inactive';
+  expired?: boolean;
   business: {
     id: string;
     name: string;

@@ -1,8 +1,10 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, X, CalendarClock, Pencil } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search, X, CalendarClock, Plus, Trash2, SquarePen } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { Spinner } from '../components/Spinner';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { useToast } from '../components/Toast';
 import { api } from '../api/client';
 import type { AdminUserRow } from '../types';
@@ -18,14 +20,26 @@ const ROLE_LABEL: Record<string, string> = {
 export function Users() {
   const toast = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [edit, setEdit] = useState<AdminUserRow | null>(null);
   const [expiryInput, setExpiryInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: () => api<AdminUserRow[]>('/admin/users'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api(`/admin/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'users'] });
+      toast('success', 'User deleted');
+      setDeleteTarget(null);
+    },
+    onError: (e: Error) => toast('error', e.message),
   });
 
   const filtered = useMemo(() => {
@@ -72,6 +86,9 @@ export function Users() {
             <h1 className="text-2xl font-bold text-gray-900">All Users</h1>
             <p className="text-sm text-gray-500 mt-0.5">Every user across all businesses, with per-user expiry</p>
           </div>
+          <Link to="/users/new" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+            <Plus size={16} /> Add User
+          </Link>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
@@ -134,13 +151,29 @@ export function Users() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => openEdit(u)}
-                          title="Set expiry"
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                        >
-                          <Pencil size={14} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => navigate(`/users/${u.id}/edit`)}
+                            title="Edit user"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          >
+                            <SquarePen size={14} />
+                          </button>
+                          <button
+                            onClick={() => openEdit(u)}
+                            title="Set expiry"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          >
+                            <CalendarClock size={14} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(u)}
+                            title="Delete user"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -177,6 +210,18 @@ export function Users() {
             </div>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete User"
+          message={`Delete "${deleteTarget.name}" (${deleteTarget.business.name})? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+          loading={deleteMutation.isPending}
+          danger
+        />
       )}
     </Layout>
   );

@@ -11,6 +11,7 @@ import { BusinessDetail } from './pages/BusinessDetail';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { Users } from './pages/Users';
+import { UserForm } from './pages/UserForm';
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
@@ -42,6 +43,8 @@ export default function App() {
                 <Route path="/businesses/new" element={<BusinessCreate />} />
                 <Route path="/businesses/:id" element={<BusinessDetail />} />
                 <Route path="/users" element={<Users />} />
+                <Route path="/users/new" element={<UserForm />} />
+                <Route path="/users/:id/edit" element={<UserForm />} />
                 <Route path="/plans" element={<Plans />} />
                 <Route path="/plans/new" element={<PlanForm />} />
                 <Route path="/plans/:id/edit" element={<PlanForm />} />
